@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+*.manifest
+*.spec
+
+# Virtual environment
+venv/
+ENV/
+env/
+.venv/
+
+# SQLite database (optional, if you don’t want to commit data)
+*.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# user files
+code/
