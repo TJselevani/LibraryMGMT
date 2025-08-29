@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
-from db.models import Staff as User, Session
 import secrets
+from datetime import datetime, timedelta
+from db.models import User, UserSession as Session
 
 
 class AuthenticationService:
@@ -153,3 +153,56 @@ class AuthenticationService:
         if not self.current_user:
             return False
         return self.current_user.has_permission(required_role)
+
+
+
+# import secrets
+# from datetime import datetime, timedelta
+# from sqlalchemy.orm import Session
+# from db.models import User, UserSession
+# from utils.security import hash_password, verify_password
+# from db.database import SessionLocal
+
+
+# SESSION_DURATION = timedelta(hours=8)
+
+
+# class AuthService:
+#     def __init__(self, db: Session = None):
+#         self.db = db or SessionLocal()
+
+#     def login(self, username: str, password: str):
+#         user = self.db.query(User).filter_by(username=username).first()
+#         if not user or not verify_password(password, user.password_hash):
+#             return None, "Invalid username or password"
+
+#         if not user.is_active:
+#             return None, "Account is inactive"
+
+#         # Create session
+#         token = secrets.token_hex(32)
+#         expires = datetime.utcnow() + SESSION_DURATION
+#         session = UserSession(user_id=user.id, session_token=token, expires_at=expires)
+#         self.db.add(session)
+
+#         user.last_login = datetime.utcnow()
+#         self.db.commit()
+#         self.db.refresh(session)
+
+#         return session, None
+
+#     def logout(self, session_token: str):
+#         session = self.db.query(UserSession).filter_by(session_token=session_token, is_active=True).first()
+#         if session:
+#             session.is_active = False
+#             self.db.commit()
+
+#     def get_current_user(self, session_token: str):
+#         session = (
+#             self.db.query(UserSession)
+#             .filter_by(session_token=session_token, is_active=True)
+#             .first()
+#         )
+#         if not session or session.expires_at < datetime.utcnow():
+#             return None
+#         return session.user

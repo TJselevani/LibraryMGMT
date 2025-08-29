@@ -1,10 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from db.models import Staff as User, StaffRole as UserRole
+from db.models import User, UserRole
 from db.database import Base
 
 
-class DatabaseManager:
+class MyDatabaseManager:
     def __init__(self, db_path="library_system.db"):
         self.engine = create_engine(f"sqlite:///{db_path}", echo=False)
         Base.metadata.create_all(self.engine)
@@ -24,6 +24,7 @@ class DatabaseManager:
                 admin_user = User(
                     username="admin",
                     email="admin@library.system",
+                    phone_number="0723452345",
                     full_name="System Administrator",
                     role=UserRole.ADMIN,
                     is_active=True,

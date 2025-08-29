@@ -1,5 +1,5 @@
 from db.database import SessionLocal
-from db.models import User
+from db.models import Patron as User
 
 
 def get_all_users():

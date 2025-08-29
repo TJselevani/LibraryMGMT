@@ -2,12 +2,8 @@ from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
-    QTableWidget,
     QTableWidgetItem,
     QHeaderView,
-    # QPushButton,
-    QLineEdit,
-    QComboBox,
     QFrame,
     QSizePolicy,
 )
@@ -15,179 +11,10 @@ from PyQt5.QtGui import QFont, QColor  # , QPalette
 
 # from PyQt5.QtCore import Qt
 from controllers.users_controller import get_all_users
-
-
-# Material Design Colors (matching main window)
-COLORS = {
-    "primary": "#1976D2",
-    "primary_light": "#42A5F5",
-    "surface": "#FFFFFF",
-    "surface_variant": "#F5F5F5",
-    "on_surface": "#212121",
-    "on_surface_variant": "#757575",
-    "outline": "#E0E0E0",
-    "success": "#4CAF50",
-    "warning": "#FF9800",
-    "error": "#F44336",
-}
-
-
-class MaterialLineEdit(QLineEdit):
-    def __init__(self, placeholder="", parent=None):
-        super().__init__(parent)
-        self.setPlaceholderText(placeholder)
-        self.setup_ui()
-
-    def setup_ui(self):
-        self.setMinimumHeight(48)
-        self.setFont(QFont("Segoe UI", 10))
-        self.setStyleSheet(
-            f"""
-            MaterialLineEdit {{
-                background-color: {COLORS['surface']};
-                border: 2px solid {COLORS['outline']};
-                border-radius: 8px;
-                padding: 12px 16px;
-                color: {COLORS['on_surface']};
-            }}
-            MaterialLineEdit:focus {{
-                border: 2px solid {COLORS['primary']};
-                background-color: {COLORS['surface']};
-            }}
-            MaterialLineEdit::placeholder {{
-                color: {COLORS['on_surface_variant']};
-            }}
-        """
-        )
-
-
-class MaterialComboBox(QComboBox):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setup_ui()
-
-    def setup_ui(self):
-        self.setMinimumHeight(48)
-        self.setFont(QFont("Segoe UI", 10))
-        self.setStyleSheet(
-            f"""
-            MaterialComboBox {{
-                background-color: {COLORS['surface']};
-                border: 2px solid {COLORS['outline']};
-                border-radius: 8px;
-                padding: 12px 16px;
-                color: {COLORS['on_surface']};
-            }}
-            MaterialComboBox:focus {{
-                border: 2px solid {COLORS['primary']};
-            }}
-            MaterialComboBox::drop-down {{
-                border: none;
-                width: 20px;
-            }}
-            MaterialComboBox::down-arrow {{
-                image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 5px solid {COLORS['on_surface_variant']};
-                margin-right: 10px;
-            }}
-            QComboBox QAbstractItemView {{
-                background-color: {COLORS['surface']};
-                border: 1px solid {COLORS['outline']};
-                border-radius: 8px;
-                selection-background-color: {COLORS['primary_light']};
-                padding: 8px;
-            }}
-        """
-        )
-
-
-class MaterialTable(QTableWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setup_ui()
-
-    def setup_ui(self):
-        # Table styling
-        self.setStyleSheet(
-            f"""
-            QTableWidget {{
-                background-color: {COLORS['surface']};
-                alternate-background-color: {COLORS['surface_variant']};
-                border: none;
-                border-radius: 8px;
-                gridline-color: {COLORS['outline']};
-                font-family: "Segoe UI";
-                font-size: 10pt;
-                color: {COLORS['on_surface']};
-            }}
-            
-            QTableWidget::item {{
-                padding: 12px 16px;
-                border: none;
-                border-bottom: 1px solid {COLORS['outline']};
-            }}
-            
-            QTableWidget::item:selected {{
-                background-color: {COLORS['primary_light']};
-                color: white;
-            }}
-            
-            QTableWidget::item:hover {{
-                background-color: {COLORS['surface_variant']};
-            }}
-            
-            QHeaderView::section {{
-                background-color: {COLORS['surface']};
-                color: {COLORS['on_surface']};
-                font-weight: 600;
-                font-size: 11pt;
-                border: none;
-                border-bottom: 2px solid {COLORS['primary']};
-                padding: 16px;
-                text-align: left;
-            }}
-            
-            QHeaderView::section:horizontal {{
-                border-right: 1px solid {COLORS['outline']};
-            }}
-            
-            QScrollBar:vertical {{
-                background-color: {COLORS['surface_variant']};
-                width: 12px;
-                border-radius: 6px;
-                margin: 0;
-            }}
-            
-            QScrollBar::handle:vertical {{
-                background-color: {COLORS['primary']};
-                border-radius: 6px;
-                min-height: 30px;
-                margin: 2px;
-            }}
-            
-            QScrollBar::handle:vertical:hover {{
-                background-color: {COLORS['primary']};
-            }}
-            
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
-                height: 0;
-            }}
-        """
-        )
-
-        # Table behavior
-        self.setAlternatingRowColors(True)
-        self.setSelectionBehavior(QTableWidget.SelectRows)
-        self.setSelectionMode(QTableWidget.SingleSelection)
-        self.setSortingEnabled(True)
-        self.setShowGrid(False)
-
-        # Header configuration
-        self.horizontalHeader().setStretchLastSection(True)
-        self.verticalHeader().setVisible(False)
-        self.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+from ui.widgets.table.material_table import MaterialTable
+from ui.widgets.TextField.material_line_edit import MaterialLineEdit
+from ui.widgets.combobox.material_combo_box import MaterialComboBox
+from utils.constants import COLORS
 
 
 class UsersView(QWidget):

@@ -1,7 +1,9 @@
 import pandas as pd
+import random
+import string
 from datetime import datetime
 from .database import engine, SessionLocal, Base
-from .models import User, generate_patron_id  # , Payment, Book, BorrowedBook
+from .models import Patron  # , Payment, Book, BorrowedBook
 
 
 def init_db():
@@ -12,16 +14,23 @@ def init_db():
     print("Database tables created successfully.")
 
 
+def generate_patron_id():
+    """Generate a 5-character patron ID: 2 letters + 3 hex digits"""
+    letters = "".join(random.choices(string.ascii_uppercase, k=2))
+    hex_digits = "".join(random.choices("0123456789ABCDEF", k=3))
+    return letters + hex_digits
+
+
 def generate_unique_patron_id(session):
     while True:
         pid = generate_patron_id()
-        if not session.query(User).filter_by(patron_id=pid).first():
+        if not session.query(Patron).filter_by(patron_id=pid).first():
             return pid
 
 
 def import_users_from_csv(file_path):
     """
-    Imports users from a CSV or Excel file.
+    Imports users from a CSV or Excel file.python -m db.init_db
     The file should have columns: first_name, last_name, institution, grade_level,
     age, date_of_birth, residence, phone_number, membership_status
     """
@@ -50,7 +59,7 @@ def import_users_from_csv(file_path):
             first_name = name_parts[0] if len(name_parts) > 0 else ""
             last_name = name_parts[-1] if len(name_parts) > 1 else ""
 
-            user = User(
+            user = Patron(
                 patron_id=generate_unique_patron_id(session),
                 first_name=first_name,
                 last_name=last_name,
