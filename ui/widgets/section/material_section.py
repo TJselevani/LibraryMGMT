@@ -13,6 +13,7 @@ from ui.widgets.cards.material_card import MaterialCard
 class MaterialSection(MaterialCard):
     def __init__(self, title, widget=None, action_button=None):
         super().__init__()
+        self.title_label = None  # keep reference
         self.setup_content(title, widget, action_button)
 
     def setup_content(self, title, widget, action_button):
@@ -23,11 +24,11 @@ class MaterialSection(MaterialCard):
         # Header
         header = QHBoxLayout()
 
-        title_label = QLabel(title)
-        title_label.setFont(QFont("Segoe UI", 16, QFont.Medium))
-        title_label.setStyleSheet(f"color: {COLORS['on_surface']};")
+        self.title_label = QLabel(title)
+        self.title_label.setFont(QFont("Segoe UI", 16, QFont.Medium))
+        self.title_label.setStyleSheet(f"color: {COLORS['on_surface']};")
 
-        header.addWidget(title_label)
+        header.addWidget(self.title_label)
         header.addStretch()
 
         if action_button:
@@ -37,7 +38,11 @@ class MaterialSection(MaterialCard):
 
         if widget:
             widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-            layout.addWidget(widget, stretch=1)  # let widget take remaining space
-            # layout.addWidget(widget)
+            layout.addWidget(widget, stretch=1)
 
         self.setLayout(layout)
+
+    # 🔑 Add this method
+    def setTitle(self, title: str):
+        if self.title_label:
+            self.title_label.setText(title)

@@ -1,4 +1,6 @@
 import secrets
+import json
+import os
 from datetime import datetime, timedelta
 from db.models import User, UserSession as Session
 
@@ -10,6 +12,7 @@ class AuthenticationService:
         self.current_session = None
         self.max_login_attempts = 3
         self.lockout_duration = timedelta(minutes=15)
+        self.session_file = "session.json"  # File to store session data
 
     def authenticate_user(self, username, password):
         """Authenticate user with username and password"""
@@ -50,6 +53,9 @@ class AuthenticationService:
 
                 self.current_user = user
                 self.current_session = user_session
+
+                # Save session to file for persistence
+                self._save_session_to_file(session_token)
 
                 return {
                     "success": True,
@@ -96,6 +102,9 @@ class AuthenticationService:
             finally:
                 session.close()
 
+        # Clear session file
+        self._clear_session_file()
+
         self.current_user = None
         self.current_session = None
         return {"success": True, "message": "Logged out successfully"}
@@ -120,10 +129,68 @@ class AuthenticationService:
 
             self.current_user = user
             self.current_session = user_session
-            return {"success": True, "user": user}
+            return {
+                "success": True,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "full_name": user.full_name,
+                    "role": user.role.value,
+                    "session_token": session_token,
+                },
+            }
 
         finally:
             session.close()
+
+    def check_existing_session(self):
+        """Check if there's an existing valid session saved locally"""
+        try:
+            if not os.path.exists(self.session_file):
+                return {"success": False, "message": "No saved session"}
+
+            with open(self.session_file, "r") as f:
+                session_data = json.load(f)
+
+            session_token = session_data.get("session_token")
+            if not session_token:
+                return {"success": False, "message": "Invalid session data"}
+
+            # Validate the session token against database
+            result = self.validate_session(session_token)
+            if result["success"]:
+                # Session is still valid, update the file with fresh timestamp
+                self._save_session_to_file(session_token)
+                return result
+            else:
+                # Session is invalid, clear the file
+                self._clear_session_file()
+                return result
+
+        except (FileNotFoundError, json.JSONDecodeError, KeyError) as e:
+            # If there's any error reading the session file, clear it
+            self._clear_session_file()
+            return {"success": False, "message": f"Session file corrupted, {e}"}
+
+    def _save_session_to_file(self, session_token):
+        """Save session token to local file"""
+        try:
+            session_data = {
+                "session_token": session_token,
+                "saved_at": datetime.utcnow().isoformat(),
+            }
+            with open(self.session_file, "w") as f:
+                json.dump(session_data, f)
+        except Exception as e:
+            print(f"Error saving session: {e}")
+
+    def _clear_session_file(self):
+        """Clear the session file"""
+        try:
+            if os.path.exists(self.session_file):
+                os.remove(self.session_file)
+        except Exception as e:
+            print(f"Error clearing session file: {e}")
 
     def change_password(self, old_password, new_password):
         """Change password for current user"""
@@ -154,55 +221,31 @@ class AuthenticationService:
             return False
         return self.current_user.has_permission(required_role)
 
+    def refresh_session(self):
+        """Extend current session expiration time"""
+        if not self.current_session:
+            return {"success": False, "message": "No active session"}
 
+        session = self.db_manager.get_session()
+        try:
+            # Update session expiration time
+            user_session = (
+                session.query(Session)
+                .filter_by(session_token=self.current_session.session_token)
+                .first()
+            )
 
-# import secrets
-# from datetime import datetime, timedelta
-# from sqlalchemy.orm import Session
-# from db.models import User, UserSession
-# from utils.security import hash_password, verify_password
-# from db.database import SessionLocal
+            if user_session:
+                user_session.expires_at = datetime.utcnow() + timedelta(hours=8)
+                session.commit()
+                self.current_session.expires_at = user_session.expires_at
 
+                # Update saved session file
+                self._save_session_to_file(self.current_session.session_token)
 
-# SESSION_DURATION = timedelta(hours=8)
+                return {"success": True, "message": "Session refreshed"}
+            else:
+                return {"success": False, "message": "Session not found"}
 
-
-# class AuthService:
-#     def __init__(self, db: Session = None):
-#         self.db = db or SessionLocal()
-
-#     def login(self, username: str, password: str):
-#         user = self.db.query(User).filter_by(username=username).first()
-#         if not user or not verify_password(password, user.password_hash):
-#             return None, "Invalid username or password"
-
-#         if not user.is_active:
-#             return None, "Account is inactive"
-
-#         # Create session
-#         token = secrets.token_hex(32)
-#         expires = datetime.utcnow() + SESSION_DURATION
-#         session = UserSession(user_id=user.id, session_token=token, expires_at=expires)
-#         self.db.add(session)
-
-#         user.last_login = datetime.utcnow()
-#         self.db.commit()
-#         self.db.refresh(session)
-
-#         return session, None
-
-#     def logout(self, session_token: str):
-#         session = self.db.query(UserSession).filter_by(session_token=session_token, is_active=True).first()
-#         if session:
-#             session.is_active = False
-#             self.db.commit()
-
-#     def get_current_user(self, session_token: str):
-#         session = (
-#             self.db.query(UserSession)
-#             .filter_by(session_token=session_token, is_active=True)
-#             .first()
-#         )
-#         if not session or session.expires_at < datetime.utcnow():
-#             return None
-#         return session.user
+        finally:
+            session.close()

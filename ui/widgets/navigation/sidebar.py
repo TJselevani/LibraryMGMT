@@ -13,6 +13,7 @@ class MaterialNavigationRail(QWidget):
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
+        # self.patrons_controller = PatronsController(self.auth_service.db_manager)
         self.active_button = None
         self.setup_ui()
 
@@ -41,6 +42,10 @@ class MaterialNavigationRail(QWidget):
         # Connect buttons
         self.home_btn.clicked.connect(lambda: self.parent.show_home())
         self.users_btn.clicked.connect(lambda: self.parent.show_users())
+        self.books_btn.clicked.connect(lambda: self.parent.show_data())
+        self.settings_btn.clicked.connect(
+            lambda: self.parent.show_composite_data_view()
+        )
 
         layout.addWidget(self.home_btn)
         layout.addWidget(self.users_btn)

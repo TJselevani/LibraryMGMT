@@ -8,6 +8,7 @@ class MyDatabaseManager:
     def __init__(self, db_path="library_system.db"):
         self.engine = create_engine(f"sqlite:///{db_path}", echo=False)
         Base.metadata.create_all(self.engine)
+        
         self.SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=self.engine
         )

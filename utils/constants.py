@@ -12,7 +12,14 @@ COLORS = {
     "outline": "#E0E0E0",  # Grey 300
     "error": "#F44336",  # Red 500
     "success": "#4CAF50",  # Green 500
-    "warning": "#FF9800",  # Orange 500
+    "warning": "#FF9800",  # Orange 500,
+    # ✅ Contrast colors
+    "on_primary": "#FFFFFF",  # White (for text/icons on blue primary)
+    "on_secondary": "#000000",  # Black (teal is light, so dark text works)
+    "on_background": "#000000",  # Black (background is light grey)
+    "on_error": "#FFFFFF",  # White on red
+    "on_success": "#FFFFFF",  # White on green
+    "on_warning": "#000000",  # Black on orange (orange is bright)
 }
 
 

@@ -1,6 +1,7 @@
 import secrets
 from datetime import datetime, timedelta
 from db.models import User, UserSession
+from utils.session_manager import SessionManager
 
 
 class AuthenticationService:
@@ -10,6 +11,7 @@ class AuthenticationService:
         self.current_session = None
         self.max_login_attempts = 3
         self.lockout_duration = timedelta(minutes=15)
+        self.session_manager = SessionManager()  # Use QSettings for session persistence
 
     def authenticate_user(self, username, password):
         """Authenticate user with username and password"""
@@ -50,6 +52,9 @@ class AuthenticationService:
 
                 self.current_user = user
                 self.current_session = user_session
+
+                # Save session token using QSettings
+                self.session_manager.save_session(session_token)
 
                 return {
                     "success": True,
@@ -96,6 +101,9 @@ class AuthenticationService:
             finally:
                 session.close()
 
+        # Clear session from QSettings
+        self.session_manager.clear_session()
+
         self.current_user = None
         self.current_session = None
         return {"success": True, "message": "Logged out successfully"}
@@ -120,36 +128,83 @@ class AuthenticationService:
 
             self.current_user = user
             self.current_session = user_session
-            return {"success": True, "user": user}
+            return {
+                "success": True,
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "full_name": user.full_name,
+                    "role": user.role.value,
+                    "session_token": session_token,
+                },
+            }
 
         finally:
             session.close()
 
-    def change_password(self, old_password, new_password):
-        """Change password for current user"""
-        if not self.current_user:
-            return {"success": False, "message": "No user logged in"}
+    def check_existing_session(self):
+        """Check if there's an existing valid session saved locally"""
+        try:
+            # Get saved session token from QSettings
+            session_token = self.session_manager.get_session()
 
-        if not self.current_user.verify_password(old_password):
-            return {"success": False, "message": "Current password is incorrect"}
+            if not session_token:
+                return {"success": False, "message": "No saved session"}
 
-        if len(new_password) < 6:
-            return {
-                "success": False,
-                "message": "New password must be at least 6 characters long",
-            }
+            # Validate the session token against database
+            result = self.validate_session(session_token)
+            if result["success"]:
+                print(
+                    f"Valid existing session found for user: {result['user']['full_name']}"
+                )
+                return result
+            else:
+                # Session is invalid, clear it from storage
+                self.session_manager.clear_session()
+                return result
+
+        except Exception as e:
+            print(f"Error checking existing session: {e}")
+            # Clear potentially corrupted session data
+            self.session_manager.clear_session()
+            return {"success": False, "message": "Session check failed"}
+
+    def refresh_session(self):
+        """Extend current session expiration time"""
+        if not self.current_session:
+            return {"success": False, "message": "No active session"}
 
         session = self.db_manager.get_session()
         try:
-            user = session.query(User).filter_by(id=self.current_user.id).first()
-            user.set_password(new_password)
-            session.commit()
-            return {"success": True, "message": "Password changed successfully"}
+            # Update session expiration time in database
+            user_session = (
+                session.query(UserSession)
+                .filter_by(
+                    session_token=self.current_session.session_token, is_active=True
+                )
+                .first()
+            )
+
+            if user_session:
+                # Extend session by 8 hours from current time
+                new_expiry = datetime.utcnow() + timedelta(hours=8)
+                user_session.expires_at = new_expiry
+                session.commit()
+
+                # Update local session object
+                self.current_session.expires_at = new_expiry
+
+                print(f"Session refreshed until: {new_expiry}")
+                return {"success": True, "message": "Session refreshed"}
+            else:
+                # Session not found in database, clear local session
+                self.session_manager.clear_session()
+                self.current_user = None
+                self.current_session = None
+                return {"success": False, "message": "Session not found"}
+
+        except Exception as e:
+            print(f"Error refreshing session: {e}")
+            return {"success": False, "message": "Session refresh failed"}
         finally:
             session.close()
-
-    def has_permission(self, required_role):
-        """Check if current user has required permission"""
-        if not self.current_user:
-            return False
-        return self.current_user.has_permission(required_role)

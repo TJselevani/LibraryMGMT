@@ -10,7 +10,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont, QColor  # , QPalette
 
 # from PyQt5.QtCore import Qt
-from controllers.users_controller import get_all_users
+from controllers.patrons_controller import PatronsController
 from ui.widgets.table.material_table import MaterialTable
 from ui.widgets.TextField.material_line_edit import MaterialLineEdit
 from ui.widgets.combobox.material_combo_box import MaterialComboBox
@@ -18,8 +18,9 @@ from utils.constants import COLORS
 
 
 class UsersView(QWidget):
-    def __init__(self):
+    def __init__(self, db_manager):
         super().__init__()
+        self.patrons_controller = PatronsController(db_manager)
         self.setup_ui()
         self.load_users()
 
@@ -74,7 +75,7 @@ class UsersView(QWidget):
         layout.addWidget(self.table, stretch=1)
 
     def load_users(self):
-        users = get_all_users()
+        users = self.patrons_controller.get_all()
         self.users_data = users  # Store for filtering
         self.populate_table(users)
 

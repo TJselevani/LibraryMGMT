@@ -104,9 +104,21 @@ class Payment(Base):
     payment_type = Column(String)  # access / membership, daily, partial, full
     amount = Column(Float)
     payment_date = Column(Date)
-    installment_number = Column(Integer)
 
     patron = relationship("Patron", back_populates="payments")
+    installments = relationship("Installment", back_populates="payment")
+
+
+class Installment(Base):
+    __tablename__ = "installments"
+
+    installment_id = Column(Integer, primary_key=True)
+    payment_id = Column(Integer, ForeignKey("payments.payment_id"))
+    installment_number = Column(Integer)  # 1, 2, 3
+    amount = Column(Float)
+    date = Column(Date)
+
+    payment = relationship("Payment", back_populates="installments")
 
 
 class Book(Base):
