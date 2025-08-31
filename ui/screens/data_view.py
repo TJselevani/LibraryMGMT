@@ -110,7 +110,13 @@ class LibraryDataView(QWidget):
         for row, p in enumerate(payments):
             table.setItem(row, 0, QTableWidgetItem(str(p.payment_id)))
             table.setItem(row, 1, QTableWidgetItem(str(p.user_id)))
-            table.setItem(row, 2, QTableWidgetItem(p.payment_type or ""))
+            # Ensure payment_type is displayed as string
+            payment_type_text = (
+                p.payment_type.value
+                if hasattr(p.payment_type, "value")
+                else str(p.payment_type or "")
+            )
+            table.setItem(row, 3, QTableWidgetItem(payment_type_text))
             table.setItem(row, 3, QTableWidgetItem(str(p.amount or "")))
             table.setItem(row, 4, QTableWidgetItem(str(p.payment_date or "")))
 

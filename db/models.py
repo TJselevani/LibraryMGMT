@@ -31,16 +31,20 @@ class PaymentType(enum.Enum):
     MEMBERSHIP = "membership"
 
 
-class GradeLevel(enum.Enum):
-    PUPIL = "pupil"
-    STUDENT = "student"
-    ADULT = "adult"
-
-
 class Category(enum.Enum):
     PUPIL = "pupil"
     STUDENT = "student"
     ADULT = "adult"
+
+
+class MembershipPlan(Base):
+    __tablename__ = "membership_plans"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    category = Column(Enum(Category), unique=True, nullable=False)
+    fee = Column(Float, nullable=False)
+
+    __table_args__ = (CheckConstraint("fee > 0", name="check_positive_fee"),)
 
 
 class User(Base):
@@ -109,7 +113,7 @@ class Patron(Base):
     last_name = Column(String(100), nullable=False)
     institution = Column(String(200))
     grade_level = Column(String(50))
-    category = Column(Enum(Category), nullable=False, default=Category.PUPIL)
+    category = Column(Enum(Category), nullable=False)
     age = Column(Integer)
     gender = Column(String(10))
     date_of_birth = Column(Date)
@@ -128,19 +132,14 @@ class Patron(Base):
     def validate_category(self, key, category):
         if isinstance(category, str):
             try:
-                return GradeLevel(category.lower())
+                return Category(category.lower())
             except ValueError:
                 raise ValueError(f"Invalid category: {category}")
         return category
 
-    def get_membership_fee(self):
-        """Get the membership fee based on grade level"""
-        fee_map = {
-            GradeLevel.PUPIL: 200,
-            GradeLevel.STUDENT: 450,
-            GradeLevel.ADULT: 600,
-        }
-        return fee_map.get(self.grade_level, 450)
+    def get_membership_fee(self, session):
+        plan = session.query(MembershipPlan).filter_by(category=self.category).first()
+        return plan.fee if plan else None
 
 
 class Payment(Base):
@@ -191,6 +190,24 @@ class Payment(Base):
                 raise ValueError(
                     f"Invalid amount for {self.payment_type.value}: expected {expected}, got {self.amount}"
                 )
+
+    def validate_membership_payment(self, session):
+        """Ensure membership payment matches patron’s plan fee if full or sum of installments if split."""
+        if self.payment_type == PaymentType.MEMBERSHIP:
+            expected_fee = self.patron.get_membership_fee(session)
+
+            if not self.installments:
+                # Full payment
+                if abs(self.amount - expected_fee) > 0.01:
+                    raise ValueError(f"Membership full payment must be {expected_fee}")
+            else:
+                # Installments case
+                total_installments = sum(inst.amount for inst in self.installments)
+                if abs(total_installments - expected_fee) > 0.01:
+                    raise ValueError(f"Installments must total {expected_fee}")
+
+                if len(self.installments) > 3:
+                    raise ValueError("Membership payment cannot exceed 3 installments")
 
 
 class Installment(Base):
@@ -307,9 +324,9 @@ class PaymentService:
     }
 
     MEMBERSHIP_FEES = {
-        GradeLevel.PUPIL: 200.0,
-        GradeLevel.STUDENT: 450.0,
-        GradeLevel.ADULT: 600.0,
+        Category.PUPIL: 200.0,
+        Category.STUDENT: 450.0,
+        Category.ADULT: 600.0,
     }
 
     @classmethod
@@ -318,7 +335,7 @@ class PaymentService:
         if payment_type == PaymentType.MEMBERSHIP:
             if not patron:
                 raise ValueError("Patron required for membership payment")
-            return cls.MEMBERSHIP_FEES.get(patron.grade_level, 450.0)
+            return cls.MEMBERSHIP_FEES.get(patron.category, 450.0)
 
         return cls.PAYMENT_AMOUNTS.get(payment_type, 0.0)
 

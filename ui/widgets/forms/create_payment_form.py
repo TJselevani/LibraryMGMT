@@ -11,12 +11,9 @@ from PyQt5.QtWidgets import (
     QFrame,
     QScrollArea,
     QListWidgetItem,
-    QSizePolicy,
-    QSpacerItem,
-    QGroupBox,
+    QGridLayout,
 )
 from PyQt5.QtCore import QDate, Qt, pyqtSignal
-# from PyQt5.QtGui import QFont, QPalette
 from ui.widgets.buttons.material_button import MaterialButton
 from utils.constants import COLORS
 
@@ -38,25 +35,26 @@ class PatronSearchWidget(QFrame):
             QFrame {{
                 background-color: {COLORS.get('surface', '#FFFFFF')};
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 12px;
-                padding: 16px;
+                border-radius: 8px;
+                padding: 12px;
             }}
         """
         )
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
+        layout.setContentsMargins(8, 8, 8, 8)
 
         # Search input
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Search patron by name or ID...")
+        self.search_input.setPlaceholderText("🔍 Search patron...")
         self.search_input.setStyleSheet(
             f"""
             QLineEdit {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
                 background-color: {COLORS.get('surface_variant', '#F5F5F5')};
             }}
             QLineEdit:focus {{
@@ -74,9 +72,10 @@ class PatronSearchWidget(QFrame):
             QLabel {{
                 background-color: {COLORS.get('surface_variant', '#F5F5F5')};
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 8px;
                 font-weight: 500;
+                font-size: 12px;
                 color: {COLORS.get('on_surface_variant', '#666666')};
             }}
         """
@@ -85,17 +84,17 @@ class PatronSearchWidget(QFrame):
 
         # Search results
         self.search_results = QListWidget()
-        self.search_results.setMaximumHeight(200)
+        self.search_results.setMaximumHeight(100)
         self.search_results.setStyleSheet(
             f"""
             QListWidget {{
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
+                border-radius: 6px;
                 background-color: white;
-                alternate-background-color: {COLORS.get('surface_variant', '#F8F8F8')};
+                font-size: 12px;
             }}
             QListWidget::item {{
-                padding: 12px 16px;
+                padding: 8px 12px;
                 border-bottom: 1px solid {COLORS.get('outline_variant', '#F0F0F0')};
             }}
             QListWidget::item:selected {{
@@ -127,9 +126,7 @@ class PatronSearchWidget(QFrame):
         search_text = self.search_input.text().lower()
         self.search_results.clear()
 
-        if (
-            len(search_text) < 2
-        ):  # Only show results when user types at least 2 characters
+        if len(search_text) < 2:
             return
 
         for patron in self.all_patrons:
@@ -138,7 +135,7 @@ class PatronSearchWidget(QFrame):
 
             if search_text in searchable:
                 display_text = f"{patron.first_name} {patron.last_name}"
-                detail_text = f"ID: {patron.patron_id} | {patron.institution} | {patron.grade_level}"
+                detail_text = f"ID: {patron.patron_id} | {patron.institution}"
 
                 item = QListWidgetItem(f"{display_text}\n{detail_text}")
                 item.setData(Qt.UserRole, patron)  # Store patron object
@@ -148,7 +145,7 @@ class PatronSearchWidget(QFrame):
         """Handle patron selection"""
         self.selected_patron = item.data(Qt.UserRole)
         self.selected_label.setText(
-            f"✓ Selected: {self.selected_patron.first_name} {self.selected_patron.last_name} "
+            f"✓ {self.selected_patron.first_name} {self.selected_patron.last_name} "
             f"(ID: {self.selected_patron.patron_id})"
         )
         self.selected_label.setStyleSheet(
@@ -156,9 +153,10 @@ class PatronSearchWidget(QFrame):
             QLabel {{
                 background-color: {COLORS.get('primary_container', '#E3F2FD')};
                 border: 1px solid {COLORS.get('primary', '#1976D2')};
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 8px;
                 font-weight: 500;
+                font-size: 12px;
                 color: {COLORS.get('on_primary_container', '#1565C0')};
             }}
         """
@@ -182,24 +180,26 @@ class InstallmentWidget(QFrame):
             QFrame {{
                 background-color: {COLORS.get('surface_variant', '#F8F8F8')};
                 border: 1px solid {COLORS.get('outline_variant', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px;
-                margin: 4px 0;
+                border-radius: 6px;
+                padding: 8px;
+                margin: 2px 0;
             }}
         """
         )
 
         layout = QHBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
+        layout.setContentsMargins(8, 8, 8, 8)
 
         # Installment label
-        label = QLabel(f"Installment {self.installment_number}")
+        label = QLabel(f"#{self.installment_number}")
         label.setStyleSheet(
             f"""
             QLabel {{
                 font-weight: 600;
                 color: {COLORS.get('on_surface', '#000000')};
-                min-width: 100px;
+                min-width: 30px;
+                font-size: 12px;
             }}
         """
         )
@@ -212,9 +212,10 @@ class InstallmentWidget(QFrame):
             f"""
             QLineEdit {{
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 6px;
-                padding: 8px 12px;
+                border-radius: 4px;
+                padding: 6px 8px;
                 background-color: white;
+                font-size: 12px;
             }}
             QLineEdit:focus {{
                 border-color: {COLORS.get('primary', '#1976D2')};
@@ -231,9 +232,11 @@ class InstallmentWidget(QFrame):
             f"""
             QDateEdit {{
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 6px;
-                padding: 8px 12px;
+                border-radius: 4px;
+                padding: 6px 8px;
                 background-color: white;
+                font-size: 12px;
+                min-height: 12px;
             }}
             QDateEdit:focus {{
                 border-color: {COLORS.get('primary', '#1976D2')};
@@ -281,8 +284,8 @@ class AddPaymentForm(QWidget):
     def setup_ui(self):
         # Main layout with padding
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(24)
-        main_layout.setContentsMargins(32, 32, 32, 32)
+        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(24, 24, 24, 24)
 
         # Set widget background
         self.setStyleSheet(
@@ -294,24 +297,24 @@ class AddPaymentForm(QWidget):
         """
         )
 
-        # Title section
+        # Title section - compact horizontal layout
         title_frame = QFrame()
         title_frame.setStyleSheet(
             f"""
             QFrame {{
                 background-color: {COLORS.get('primary', '#1976D2')};
                 border-radius: 12px;
-                padding: 24px;
+                padding: 16px;
             }}
         """
         )
-        title_layout = QVBoxLayout(title_frame)
+        title_layout = QHBoxLayout(title_frame)
 
         title = QLabel("💳 Add Payment")
         title.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 32px;
+                font-size: 24px;
                 font-weight: 700;
                 color: {COLORS.get('on_primary', '#FFFFFF')};
                 margin: 0;
@@ -323,93 +326,95 @@ class AddPaymentForm(QWidget):
         subtitle.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 16px;
+                font-size: 14px;
                 color: {COLORS.get('on_primary', '#FFFFFF')};
-                margin-top: 8px;
                 opacity: 0.9;
             }}
         """
         )
 
         title_layout.addWidget(title)
+        title_layout.addStretch()
         title_layout.addWidget(subtitle)
         main_layout.addWidget(title_frame)
 
-        # Content area with scroll
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("QScrollArea { border: none; }")
+        # Main content area - 2 column layout with conditional 3rd column
+        content_frame = QFrame()
+        content_layout = QHBoxLayout(content_frame)
+        content_layout.setSpacing(20)
 
-        content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(24)
-
-        # Patron selection section
-        patron_group = QGroupBox("👤 Select Patron")
-        patron_group.setStyleSheet(
+        # Left Column - Patron Selection
+        patron_frame = QFrame()
+        patron_frame.setStyleSheet(
             f"""
-            QGroupBox {{
-                font-size: 18px;
-                font-weight: 600;
-                color: {COLORS.get('primary', '#1976D2')};
-                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+            QFrame {{
+                background-color: white;
+                border: 2px solid {COLORS.get('primary', '#1976D2')};
                 border-radius: 12px;
-                margin-top: 12px;
-                padding-top: 16px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 16px;
-                padding: 0 8px;
-                background-color: {COLORS.get('surface', '#FAFAFA')};
+                padding: 16px;
             }}
         """
         )
-        patron_layout = QVBoxLayout(patron_group)
+        patron_layout = QVBoxLayout(patron_frame)
+        patron_layout.setSpacing(12)
+
+        patron_title = QLabel("👤 Select Patron")
+        patron_title.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS.get('primary', '#1976D2')};
+                margin-bottom: 8px;
+            }}
+        """
+        )
+        patron_layout.addWidget(patron_title)
 
         self.patron_search = PatronSearchWidget()
         self.patron_search.patron_selected.connect(self.on_patron_selected)
         patron_layout.addWidget(self.patron_search)
-        content_layout.addWidget(patron_group)
 
-        # Payment details section
-        payment_group = QGroupBox("💰 Payment Details")
-        payment_group.setStyleSheet(
+        # Right Column - Payment Details
+        payment_frame = QFrame()
+        payment_frame.setStyleSheet(
             f"""
-            QGroupBox {{
-                font-size: 18px;
-                font-weight: 600;
-                color: {COLORS.get('primary', '#1976D2')};
-                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+            QFrame {{
+                background-color: white;
+                border: 2px solid {COLORS.get('secondary', '#2E7D32')};
                 border-radius: 12px;
-                margin-top: 12px;
-                padding-top: 16px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 16px;
-                padding: 0 8px;
-                background-color: {COLORS.get('surface', '#FAFAFA')};
+                padding: 16px;
             }}
         """
         )
-        payment_layout = QVBoxLayout(payment_group)
-        payment_layout.setSpacing(16)
+        payment_layout = QVBoxLayout(payment_frame)
+        payment_layout.setSpacing(12)
+
+        payment_title = QLabel("💰 Payment Details")
+        payment_title.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS.get('secondary', '#2E7D32')};
+                margin-bottom: 8px;
+            }}
+        """
+        )
+        payment_layout.addWidget(payment_title)
 
         # Payment type selection
-        type_layout = QVBoxLayout()
         type_label = QLabel("Payment Type")
         type_label.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 500;
                 color: {COLORS.get('on_surface', '#000000')};
-                margin-bottom: 4px;
             }}
         """
         )
-        type_layout.addWidget(type_label)
+        payment_layout.addWidget(type_label)
 
         self.payment_type = QComboBox()
         self.payment_type.addItems(
@@ -423,49 +428,46 @@ class AddPaymentForm(QWidget):
             f"""
             QComboBox {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
                 background-color: white;
-                min-height: 20px;
+                min-height: 16px;
             }}
             QComboBox:focus {{
                 border-color: {COLORS.get('primary', '#1976D2')};
             }}
             QComboBox::drop-down {{
                 border: none;
-                width: 30px;
+                width: 25px;
             }}
             QComboBox::down-arrow {{
                 image: none;
-                border-left: 5px solid transparent;
-                border-right: 5px solid transparent;
-                border-top: 5px solid {COLORS.get('on_surface', '#000000')};
-                margin-right: 10px;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 4px solid {COLORS.get('on_surface', '#000000')};
+                margin-right: 8px;
             }}
         """
         )
-        type_layout.addWidget(self.payment_type)
-        payment_layout.addLayout(type_layout)
+        payment_layout.addWidget(self.payment_type)
 
-        # Amount and date in a row
-        amount_date_layout = QHBoxLayout()
-        amount_date_layout.setSpacing(16)
+        # Amount and date in grid
+        details_grid = QGridLayout()
+        details_grid.setSpacing(12)
 
         # Amount
-        amount_col = QVBoxLayout()
         amount_label = QLabel("Amount (KSh)")
         amount_label.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 500;
                 color: {COLORS.get('on_surface', '#000000')};
-                margin-bottom: 4px;
             }}
         """
         )
-        amount_col.addWidget(amount_label)
+        details_grid.addWidget(amount_label, 0, 0)
 
         self.amount = QLineEdit()
         self.amount.setPlaceholderText("0.00")
@@ -474,31 +476,28 @@ class AddPaymentForm(QWidget):
             f"""
             QLineEdit {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
                 background-color: {COLORS.get('surface_variant', '#F5F5F5')};
                 font-weight: 600;
             }}
         """
         )
-        amount_col.addWidget(self.amount)
-        amount_date_layout.addLayout(amount_col)
+        details_grid.addWidget(self.amount, 1, 0)
 
         # Payment date
-        date_col = QVBoxLayout()
         date_label = QLabel("Payment Date")
         date_label.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 500;
                 color: {COLORS.get('on_surface', '#000000')};
-                margin-bottom: 4px;
             }}
         """
         )
-        date_col.addWidget(date_label)
+        details_grid.addWidget(date_label, 0, 1)
 
         self.payment_date = QDateEdit()
         self.payment_date.setCalendarPopup(True)
@@ -507,71 +506,92 @@ class AddPaymentForm(QWidget):
             f"""
             QDateEdit {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
                 background-color: white;
-                min-height: 20px;
+                min-height: 16px;
             }}
             QDateEdit:focus {{
                 border-color: {COLORS.get('primary', '#1976D2')};
             }}
         """
         )
-        date_col.addWidget(self.payment_date)
-        amount_date_layout.addLayout(date_col)
+        details_grid.addWidget(self.payment_date, 1, 1)
 
-        payment_layout.addLayout(amount_date_layout)
-        content_layout.addWidget(payment_group)
+        payment_layout.addLayout(details_grid)
 
-        # Installments section (initially hidden)
-        self.installments_group = QGroupBox("📅 Payment Installments")
-        self.installments_group.setStyleSheet(
+        # Add stretch to push content to top
+        payment_layout.addStretch()
+
+        # Add columns to content layout
+        content_layout.addWidget(patron_frame)
+        content_layout.addWidget(payment_frame)
+
+        # Installments section (third column, initially hidden)
+        self.installments_frame = QFrame()
+        self.installments_frame.setStyleSheet(
             f"""
-            QGroupBox {{
-                font-size: 18px;
-                font-weight: 600;
-                color: {COLORS.get('secondary', '#7B1FA2')};
-                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+            QFrame {{
+                background-color: white;
+                border: 2px solid {COLORS.get('tertiary', '#7B1FA2')};
                 border-radius: 12px;
-                margin-top: 12px;
-                padding-top: 16px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 16px;
-                padding: 0 8px;
-                background-color: {COLORS.get('surface', '#FAFAFA')};
+                padding: 16px;
             }}
         """
         )
-        self.installments_layout = QVBoxLayout(self.installments_group)
-        self.installments_group.hide()  # Initially hidden
-        content_layout.addWidget(self.installments_group)
+        installments_layout = QVBoxLayout(self.installments_frame)
+        installments_layout.setSpacing(12)
 
-        # Spacer
-        content_layout.addSpacerItem(
-            QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        installments_title = QLabel("📅 Payment Installments")
+        installments_title.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS.get('tertiary', '#7B1FA2')};
+                margin-bottom: 8px;
+            }}
+        """
         )
+        installments_layout.addWidget(installments_title)
 
-        scroll_area.setWidget(content_widget)
-        main_layout.addWidget(scroll_area)
+        # Scrollable installments area
+        installments_scroll = QScrollArea()
+        installments_scroll.setWidgetResizable(True)
+        installments_scroll.setMaximumHeight(200)
+        installments_scroll.setStyleSheet("QScrollArea { border: none; }")
 
-        # Action buttons
+        self.installments_widget = QWidget()
+        self.installments_layout = QVBoxLayout(self.installments_widget)
+        self.installments_layout.setSpacing(4)
+
+        installments_scroll.setWidget(self.installments_widget)
+        installments_layout.addWidget(installments_scroll)
+
+        # Add stretch
+        installments_layout.addStretch()
+
+        self.installments_frame.hide()  # Initially hidden
+        content_layout.addWidget(self.installments_frame)
+
+        main_layout.addWidget(content_frame)
+
+        # Action buttons section - compact
         button_frame = QFrame()
         button_frame.setStyleSheet(
             f"""
             QFrame {{
                 background-color: white;
                 border-top: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                padding: 16px 0;
+                border-radius: 8px;
+                padding: 12px 16px;
+                margin-top: 8px;
             }}
         """
         )
         button_layout = QHBoxLayout(button_frame)
-        button_layout.addSpacerItem(
-            QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
-        )
+        button_layout.addStretch()
 
         cancel_btn = MaterialButton("Cancel", button_type="outlined")
         save_btn = MaterialButton("💾 Save Payment", button_type="elevated")
@@ -582,10 +602,10 @@ class AddPaymentForm(QWidget):
                 color: white;
                 border: none;
                 border-radius: 8px;
-                padding: 12px 24px;
-                font-size: 16px;
+                padding: 12px 20px;
+                font-size: 14px;
                 font-weight: 600;
-                min-width: 140px;
+                min-width: 120px;
             }}
             QPushButton:hover {{
                 background-color: {COLORS.get('primary_variant', '#1565C0')};
@@ -627,24 +647,32 @@ class AddPaymentForm(QWidget):
 
         if payment_type == "access":
             self.amount.setText("20.00")
-            self.installments_group.hide()
+            self.installments_frame.hide()
 
         elif payment_type == "study_room":
             self.amount.setText("150.00")
-            self.installments_group.hide()
+            self.installments_frame.hide()
 
         elif payment_type == "membership":
             if self.selected_patron:
-                grade_level = self.selected_patron.grade_level.lower()
-                amount = self.MEMBERSHIP_FEES.get(grade_level, 450)
-                self.amount.setText(f"{amount:.2f}")
+                try:
+                    amount = self.patrons_controller.get_membership_fee(
+                        self.selected_patron.user_id
+                    )
+                    self.amount.setText(f"{amount:.2f}")
 
-                # Show installments
-                self.installments_group.show()
-                self.create_installment_widgets(amount)
+                    # Show installments
+                    self.installments_frame.show()
+                    self.create_installment_widgets(amount)
+                except Exception as e:
+                    QMessageBox.warning(
+                        self, "Error", f"Could not fetch membership fee: {str(e)}"
+                    )
+                    self.amount.setText("0.00")
+                    self.installments_frame.hide()
             else:
                 self.amount.setText("0.00")
-                self.installments_group.hide()
+                self.installments_frame.hide()
 
     def create_installment_widgets(self, total_amount):
         """Create installment input widgets"""
@@ -725,18 +753,20 @@ class AddPaymentForm(QWidget):
         payment_data = {
             "user_id": self.selected_patron.user_id,
             "payment_type": payment_type,
-            "amount": float(self.amount.text()),
             "payment_date": self.payment_date.date().toString("yyyy-MM-dd"),
         }
 
-        # Add installments for membership
         if payment_type == "membership" and self.installment_widgets:
+            # Payment amount comes from installments (sum validated earlier)
+            payment_data["amount"] = 0.0
             installments = []
             for widget in self.installment_widgets:
                 data = widget.get_data()
                 if data:
                     installments.append(data)
             payment_data["installments"] = installments
+        else:
+            payment_data["amount"] = float(self.amount.text())
 
         # Save through controller
         try:
@@ -766,4 +796,4 @@ class AddPaymentForm(QWidget):
         self.amount.clear()
         self.payment_date.setDate(QDate.currentDate())
         self.clear_installments()
-        self.installments_group.hide()
+        self.installments_frame.hide()

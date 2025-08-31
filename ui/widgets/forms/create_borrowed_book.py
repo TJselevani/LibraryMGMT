@@ -8,12 +8,10 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QMessageBox,
     QFrame,
-    QScrollArea,
+
     QListWidgetItem,
-    QSizePolicy,
-    QSpacerItem,
-    QGroupBox,
     QTextEdit,
+    QGridLayout,
 )
 from PyQt5.QtCore import QDate, Qt, pyqtSignal
 from ui.widgets.buttons.material_button import MaterialButton
@@ -38,25 +36,26 @@ class PatronSearchWidget(QFrame):
             QFrame {{
                 background-color: {COLORS.get('surface', '#FFFFFF')};
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 12px;
-                padding: 16px;
+                border-radius: 8px;
+                padding: 12px;
             }}
         """
         )
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
+        layout.setContentsMargins(8, 8, 8, 8)
 
         # Search input
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("🔍 Search patron by name or ID...")
+        self.search_input.setPlaceholderText("🔍 Search patron...")
         self.search_input.setStyleSheet(
             f"""
             QLineEdit {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
                 background-color: {COLORS.get('surface_variant', '#F5F5F5')};
             }}
             QLineEdit:focus {{
@@ -74,9 +73,10 @@ class PatronSearchWidget(QFrame):
             QLabel {{
                 background-color: {COLORS.get('surface_variant', '#F5F5F5')};
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 8px;
                 font-weight: 500;
+                font-size: 12px;
                 color: {COLORS.get('on_surface_variant', '#666666')};
             }}
         """
@@ -85,16 +85,17 @@ class PatronSearchWidget(QFrame):
 
         # Search results
         self.search_results = QListWidget()
-        self.search_results.setMaximumHeight(150)
+        self.search_results.setMaximumHeight(100)
         self.search_results.setStyleSheet(
             f"""
             QListWidget {{
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
+                border-radius: 6px;
                 background-color: white;
+                font-size: 12px;
             }}
             QListWidget::item {{
-                padding: 12px 16px;
+                padding: 8px 12px;
                 border-bottom: 1px solid {COLORS.get('outline_variant', '#F0F0F0')};
             }}
             QListWidget::item:selected {{
@@ -131,7 +132,7 @@ class PatronSearchWidget(QFrame):
 
             if search_text in searchable:
                 display_text = f"{patron.first_name} {patron.last_name}"
-                detail_text = f"ID: {patron.patron_id} | {patron.institution} | {patron.grade_level}"
+                detail_text = f"ID: {patron.patron_id} | {patron.institution}"
 
                 item = QListWidgetItem(f"{display_text}\n{detail_text}")
                 item.setData(Qt.UserRole, patron)
@@ -140,7 +141,7 @@ class PatronSearchWidget(QFrame):
     def select_patron(self, item):
         self.selected_patron = item.data(Qt.UserRole)
         self.selected_label.setText(
-            f"✓ Selected: {self.selected_patron.first_name} {self.selected_patron.last_name} "
+            f"✓ {self.selected_patron.first_name} {self.selected_patron.last_name} "
             f"(ID: {self.selected_patron.patron_id})"
         )
         self.selected_label.setStyleSheet(
@@ -148,9 +149,10 @@ class PatronSearchWidget(QFrame):
             QLabel {{
                 background-color: {COLORS.get('primary_container', '#E3F2FD')};
                 border: 1px solid {COLORS.get('primary', '#1976D2')};
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 8px;
                 font-weight: 500;
+                font-size: 12px;
                 color: {COLORS.get('on_primary_container', '#1565C0')};
             }}
         """
@@ -177,27 +179,26 @@ class BookSearchWidget(QFrame):
             QFrame {{
                 background-color: {COLORS.get('surface', '#FFFFFF')};
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 12px;
-                padding: 16px;
+                border-radius: 8px;
+                padding: 12px;
             }}
         """
         )
 
         layout = QVBoxLayout(self)
-        layout.setSpacing(12)
+        layout.setSpacing(8)
+        layout.setContentsMargins(8, 8, 8, 8)
 
         # Search input
         self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText(
-            "📖 Search book by title, author, or accession number..."
-        )
+        self.search_input.setPlaceholderText("📖 Search book...")
         self.search_input.setStyleSheet(
             f"""
             QLineEdit {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
                 background-color: {COLORS.get('surface_variant', '#F5F5F5')};
             }}
             QLineEdit:focus {{
@@ -215,9 +216,10 @@ class BookSearchWidget(QFrame):
             QLabel {{
                 background-color: {COLORS.get('surface_variant', '#F5F5F5')};
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 8px;
                 font-weight: 500;
+                font-size: 12px;
                 color: {COLORS.get('on_surface_variant', '#666666')};
             }}
         """
@@ -226,16 +228,17 @@ class BookSearchWidget(QFrame):
 
         # Search results
         self.search_results = QListWidget()
-        self.search_results.setMaximumHeight(200)
+        self.search_results.setMaximumHeight(120)
         self.search_results.setStyleSheet(
             f"""
             QListWidget {{
                 border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
+                border-radius: 6px;
                 background-color: white;
+                font-size: 12px;
             }}
             QListWidget::item {{
-                padding: 12px 16px;
+                padding: 8px 12px;
                 border-bottom: 1px solid {COLORS.get('outline_variant', '#F0F0F0')};
             }}
             QListWidget::item:selected {{
@@ -282,7 +285,7 @@ class BookSearchWidget(QFrame):
                 )
 
                 display_text = f"{availability_icon} {book.title}"
-                detail_text = f"By: {book.author} | Acc: {book.accession_no} | {availability_text}"
+                detail_text = f"By: {book.author} | {availability_text}"
 
                 item = QListWidgetItem(f"{display_text}\n{detail_text}")
                 item.setData(Qt.UserRole, book)
@@ -310,17 +313,17 @@ class BookSearchWidget(QFrame):
             return
 
         self.selected_label.setText(
-            f"✓ Selected: {self.selected_book.title} "
-            f"(Acc: {self.selected_book.accession_no})"
+            f"✓ {self.selected_book.title} " f"(Acc: {self.selected_book.accession_no})"
         )
         self.selected_label.setStyleSheet(
             f"""
             QLabel {{
                 background-color: {COLORS.get('secondary_container', '#E8F5E8')};
                 border: 1px solid {COLORS.get('secondary', '#2E7D32')};
-                border-radius: 8px;
-                padding: 12px;
+                border-radius: 6px;
+                padding: 8px;
                 font-weight: 500;
+                font-size: 12px;
                 color: {COLORS.get('on_secondary_container', '#1B5E20')};
             }}
         """
@@ -355,8 +358,8 @@ class AddBorrowedBookForm(QWidget):
     def setup_ui(self):
         # Main layout with padding
         main_layout = QVBoxLayout(self)
-        main_layout.setSpacing(24)
-        main_layout.setContentsMargins(32, 32, 32, 32)
+        main_layout.setSpacing(20)
+        main_layout.setContentsMargins(24, 24, 24, 24)
 
         # Set widget background
         self.setStyleSheet(
@@ -368,24 +371,24 @@ class AddBorrowedBookForm(QWidget):
         """
         )
 
-        # Title section
+        # Title section - more compact
         title_frame = QFrame()
         title_frame.setStyleSheet(
             f"""
             QFrame {{
                 background-color: {COLORS.get('secondary', '#2E7D32')};
                 border-radius: 12px;
-                padding: 24px;
+                padding: 16px;
             }}
         """
         )
-        title_layout = QVBoxLayout(title_frame)
+        title_layout = QHBoxLayout(title_frame)
 
         title = QLabel("📚 Borrow Book")
         title.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 32px;
+                font-size: 24px;
                 font-weight: 700;
                 color: {COLORS.get('on_secondary', '#FFFFFF')};
                 margin: 0;
@@ -397,125 +400,131 @@ class AddBorrowedBookForm(QWidget):
         subtitle.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 16px;
+                font-size: 14px;
                 color: {COLORS.get('on_secondary', '#FFFFFF')};
-                margin-top: 8px;
                 opacity: 0.9;
             }}
         """
         )
 
         title_layout.addWidget(title)
+        title_layout.addStretch()
         title_layout.addWidget(subtitle)
         main_layout.addWidget(title_frame)
 
-        # Content area with scroll
-        scroll_area = QScrollArea()
-        scroll_area.setWidgetResizable(True)
-        scroll_area.setStyleSheet("QScrollArea { border: none; }")
+        # Main content area - 3 column layout
+        content_frame = QFrame()
+        content_layout = QHBoxLayout(content_frame)
+        content_layout.setSpacing(20)
 
-        content_widget = QWidget()
-        content_layout = QVBoxLayout(content_widget)
-        content_layout.setSpacing(24)
-
-        # Patron selection section
-        patron_group = QGroupBox("👤 Select Patron")
-        patron_group.setStyleSheet(
+        # Left Column - Patron Selection
+        patron_frame = QFrame()
+        patron_frame.setStyleSheet(
             f"""
-            QGroupBox {{
-                font-size: 18px;
-                font-weight: 600;
-                color: {COLORS.get('primary', '#1976D2')};
-                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+            QFrame {{
+                background-color: white;
+                border: 2px solid {COLORS.get('primary', '#1976D2')};
                 border-radius: 12px;
-                margin-top: 12px;
-                padding-top: 16px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 16px;
-                padding: 0 8px;
-                background-color: {COLORS.get('surface', '#FAFAFA')};
+                padding: 16px;
             }}
         """
         )
-        patron_layout = QVBoxLayout(patron_group)
+        patron_layout = QVBoxLayout(patron_frame)
+        patron_layout.setSpacing(12)
+
+        patron_title = QLabel("👤 Select Patron")
+        patron_title.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS.get('primary', '#1976D2')};
+                margin-bottom: 8px;
+            }}
+        """
+        )
+        patron_layout.addWidget(patron_title)
 
         self.patron_search = PatronSearchWidget()
         self.patron_search.patron_selected.connect(self.on_patron_selected)
         patron_layout.addWidget(self.patron_search)
-        content_layout.addWidget(patron_group)
 
-        # Book selection section
-        book_group = QGroupBox("📖 Select Book")
-        book_group.setStyleSheet(
+        # Middle Column - Book Selection
+        book_frame = QFrame()
+        book_frame.setStyleSheet(
             f"""
-            QGroupBox {{
-                font-size: 18px;
-                font-weight: 600;
-                color: {COLORS.get('secondary', '#2E7D32')};
-                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+            QFrame {{
+                background-color: white;
+                border: 2px solid {COLORS.get('secondary', '#2E7D32')};
                 border-radius: 12px;
-                margin-top: 12px;
-                padding-top: 16px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 16px;
-                padding: 0 8px;
-                background-color: {COLORS.get('surface', '#FAFAFA')};
+                padding: 16px;
             }}
         """
         )
-        book_layout = QVBoxLayout(book_group)
+        book_layout = QVBoxLayout(book_frame)
+        book_layout.setSpacing(12)
+
+        book_title = QLabel("📖 Select Book")
+        book_title.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS.get('secondary', '#2E7D32')};
+                margin-bottom: 8px;
+            }}
+        """
+        )
+        book_layout.addWidget(book_title)
 
         self.book_search = BookSearchWidget()
         self.book_search.book_selected.connect(self.on_book_selected)
         book_layout.addWidget(self.book_search)
-        content_layout.addWidget(book_group)
 
-        # Borrowing details section
-        details_group = QGroupBox("📅 Borrowing Details")
-        details_group.setStyleSheet(
+        # Right Column - Borrowing Details
+        details_frame = QFrame()
+        details_frame.setStyleSheet(
             f"""
-            QGroupBox {{
-                font-size: 18px;
-                font-weight: 600;
-                color: {COLORS.get('tertiary', '#7B1FA2')};
-                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+            QFrame {{
+                background-color: white;
+                border: 2px solid {COLORS.get('tertiary', '#7B1FA2')};
                 border-radius: 12px;
-                margin-top: 12px;
-                padding-top: 16px;
-            }}
-            QGroupBox::title {{
-                subcontrol-origin: margin;
-                left: 16px;
-                padding: 0 8px;
-                background-color: {COLORS.get('surface', '#FAFAFA')};
+                padding: 16px;
             }}
         """
         )
-        details_layout = QVBoxLayout(details_group)
-        details_layout.setSpacing(16)
+        details_layout = QVBoxLayout(details_frame)
+        details_layout.setSpacing(12)
 
-        # Date inputs in a row
-        dates_layout = QHBoxLayout()
-        dates_layout.setSpacing(16)
+        details_title = QLabel("📅 Borrowing Details")
+        details_title.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 16px;
+                font-weight: 600;
+                color: {COLORS.get('tertiary', '#7B1FA2')};
+                margin-bottom: 8px;
+            }}
+        """
+        )
+        details_layout.addWidget(details_title)
+
+        # Date inputs
+        dates_grid = QGridLayout()
+        dates_grid.setSpacing(12)
 
         # Borrow date
-        borrow_col = QVBoxLayout()
         borrow_label = QLabel("Borrow Date")
         borrow_label.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 500;
                 color: {COLORS.get('on_surface', '#000000')};
-                margin-bottom: 4px;
             }}
         """
         )
-        borrow_col.addWidget(borrow_label)
+        dates_grid.addWidget(borrow_label, 0, 0)
 
         self.borrow_date = QDateEdit()
         self.borrow_date.setCalendarPopup(True)
@@ -524,69 +533,64 @@ class AddBorrowedBookForm(QWidget):
             f"""
             QDateEdit {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
                 background-color: white;
-                min-height: 20px;
+                min-height: 16px;
             }}
             QDateEdit:focus {{
                 border-color: {COLORS.get('secondary', '#2E7D32')};
             }}
         """
         )
-        borrow_col.addWidget(self.borrow_date)
-        dates_layout.addLayout(borrow_col)
+        dates_grid.addWidget(self.borrow_date, 1, 0)
 
         # Due date
-        due_col = QVBoxLayout()
         due_label = QLabel("Due Date")
         due_label.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 500;
                 color: {COLORS.get('on_surface', '#000000')};
-                margin-bottom: 4px;
             }}
         """
         )
-        due_col.addWidget(due_label)
+        dates_grid.addWidget(due_label, 0, 1)
 
         self.due_date = QDateEdit()
         self.due_date.setCalendarPopup(True)
-        # Set default due date to 14 days from now
         self.due_date.setDate(QDate.currentDate().addDays(14))
         self.due_date.setStyleSheet(
             f"""
             QDateEdit {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px 16px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
                 background-color: white;
-                min-height: 20px;
+                min-height: 16px;
             }}
             QDateEdit:focus {{
                 border-color: {COLORS.get('secondary', '#2E7D32')};
             }}
         """
         )
-        due_col.addWidget(self.due_date)
-        dates_layout.addLayout(due_col)
+        dates_grid.addWidget(self.due_date, 1, 1)
 
-        details_layout.addLayout(dates_layout)
+        details_layout.addLayout(dates_grid)
 
         # Borrowing period info
-        self.period_info = QLabel("📋 Default borrowing period: 14 days")
+        self.period_info = QLabel("📋 Period: 14 days")
         self.period_info.setStyleSheet(
             f"""
             QLabel {{
                 background-color: {COLORS.get('tertiary_container', '#F3E5F5')};
                 border: 1px solid {COLORS.get('tertiary', '#7B1FA2')};
-                border-radius: 8px;
-                padding: 12px;
-                font-style: italic;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 12px;
                 color: {COLORS.get('on_tertiary_container', '#4A148C')};
             }}
         """
@@ -598,25 +602,24 @@ class AddBorrowedBookForm(QWidget):
         notes_label.setStyleSheet(
             f"""
             QLabel {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 500;
                 color: {COLORS.get('on_surface', '#000000')};
-                margin-bottom: 4px;
             }}
         """
         )
         details_layout.addWidget(notes_label)
 
         self.notes = QTextEdit()
-        self.notes.setMaximumHeight(80)
-        self.notes.setPlaceholderText("Add any special notes about this borrowing...")
+        self.notes.setMaximumHeight(60)
+        self.notes.setPlaceholderText("Add notes...")
         self.notes.setStyleSheet(
             f"""
             QTextEdit {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                padding: 12px;
-                font-size: 14px;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 13px;
                 background-color: white;
             }}
             QTextEdit:focus {{
@@ -626,31 +629,31 @@ class AddBorrowedBookForm(QWidget):
         )
         details_layout.addWidget(self.notes)
 
-        content_layout.addWidget(details_group)
+        # Add stretch to push content to top
+        details_layout.addStretch()
 
-        # Spacer
-        content_layout.addSpacerItem(
-            QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
-        )
+        # Add columns to content layout
+        content_layout.addWidget(patron_frame)
+        content_layout.addWidget(book_frame)
+        content_layout.addWidget(details_frame)
 
-        scroll_area.setWidget(content_widget)
-        main_layout.addWidget(scroll_area)
+        main_layout.addWidget(content_frame)
 
-        # Action buttons
+        # Action buttons section - compact
         button_frame = QFrame()
         button_frame.setStyleSheet(
             f"""
             QFrame {{
                 background-color: white;
                 border-top: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                padding: 16px 0;
+                border-radius: 8px;
+                padding: 12px 16px;
+                margin-top: 8px;
             }}
         """
         )
         button_layout = QHBoxLayout(button_frame)
-        button_layout.addSpacerItem(
-            QSpacerItem(40, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
-        )
+        button_layout.addStretch()
 
         cancel_btn = MaterialButton("Cancel", button_type="outlined")
         save_btn = MaterialButton("📚 Create Borrow Record", button_type="elevated")
@@ -661,10 +664,10 @@ class AddBorrowedBookForm(QWidget):
                 color: white;
                 border: none;
                 border-radius: 8px;
-                padding: 12px 24px;
-                font-size: 16px;
+                padding: 12px 20px;
+                font-size: 14px;
                 font-weight: 600;
-                min-width: 160px;
+                min-width: 140px;
             }}
             QPushButton:hover {{
                 background-color: {COLORS.get('secondary_variant', '#1B5E20')};
@@ -716,7 +719,7 @@ class AddBorrowedBookForm(QWidget):
         # Update period info
         days = borrow_date.daysTo(due_date)
         self.period_info.setText(
-            f"📋 Borrowing period: {days} days (Due: {due_date.toString('MMM dd, yyyy')})"
+            f"📋 Period: {days} days (Due: {due_date.toString('MMM dd')})"
         )
 
     def update_borrowing_info(self):
@@ -726,17 +729,15 @@ class AddBorrowedBookForm(QWidget):
             if hasattr(self.selected_patron, "membership_status"):
                 if self.selected_patron.membership_status != "active":
                     # Show warning for non-members
-                    self.period_info.setText(
-                        "⚠️ Note: Patron doesn't have active membership. "
-                        "Consider requiring membership for extended borrowing."
-                    )
+                    self.period_info.setText("⚠️ Patron doesn't have active membership")
                     self.period_info.setStyleSheet(
                         f"""
                         QLabel {{
                             background-color: {COLORS.get('error_container', '#FFEBEE')};
                             border: 1px solid {COLORS.get('error', '#D32F2F')};
-                            border-radius: 8px;
-                            padding: 12px;
+                            border-radius: 6px;
+                            padding: 8px;
+                            font-size: 12px;
                             color: {COLORS.get('on_error_container', '#C62828')};
                         }}
                     """
@@ -852,15 +853,15 @@ class AddBorrowedBookForm(QWidget):
         self.notes.clear()
 
         # Reset period info
-        self.period_info.setText("📋 Default borrowing period: 14 days")
+        self.period_info.setText("📋 Period: 14 days")
         self.period_info.setStyleSheet(
             f"""
             QLabel {{
                 background-color: {COLORS.get('tertiary_container', '#F3E5F5')};
                 border: 1px solid {COLORS.get('tertiary', '#7B1FA2')};
-                border-radius: 8px;
-                padding: 12px;
-                font-style: italic;
+                border-radius: 6px;
+                padding: 8px;
+                font-size: 12px;
                 color: {COLORS.get('on_tertiary_container', '#4A148C')};
             }}
         """

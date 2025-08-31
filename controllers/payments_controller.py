@@ -1,7 +1,14 @@
 # controllers/payments_controller.py
 from datetime import datetime, date, timedelta
 from sqlalchemy.orm import joinedload
-from db.models import Payment, Patron, Installment, PaymentType, PaymentService
+from db.models import (
+    Payment,
+    Patron,
+    Installment,
+    PaymentType,
+    PaymentService,
+    MembershipPlan,
+)
 from typing import Dict, List, Optional
 from sqlalchemy.exc import IntegrityError
 
@@ -78,7 +85,7 @@ class PaymentController:
             if isinstance(start_date, str):
                 start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
             if isinstance(end_date, str):
-                end_date = datetime.strptime(end_date, "%Y-%m-%d").date()
+                end_date = datetime.strptMEMBERSHIP_FEEime(end_date, "%Y-%m-%d").date()
 
             return (
                 session.query(Payment)
@@ -158,7 +165,7 @@ class PaymentController:
                     and payment.payment_type == PaymentType.MEMBERSHIP
                 ):
                     installments_created = self._create_installments(
-                        payment.payment_id, payment_data["installments"], session
+                        payment.payment_id, payment_data["installments"]
                     )
                     if not installments_created["success"]:
                         session.rollback()
@@ -193,29 +200,32 @@ class PaymentController:
         self, payment_id: int, installments_data: List[Dict]
     ) -> Dict:
         """Create installment records for a payment"""
-        try:
-            total_installments = 0
+        with self.db_manager.get_session() as session:
+            try:
+                total_installments = 0
 
-            for i, installment_data in enumerate(installments_data, 1):
-                installment = Installment(
-                    payment_id=payment_id,
-                    installment_number=installment_data.get("installment_number", i),
-                    amount=float(installment_data["amount"]),
-                    due_date=datetime.strptime(
-                        installment_data["date"], "%Y-%m-%d"
-                    ).date(),
-                )
+                for i, installment_data in enumerate(installments_data, 1):
+                    installment = Installment(
+                        payment_id=payment_id,
+                        installment_number=installment_data.get(
+                            "installment_number", i
+                        ),
+                        amount=float(installment_data["amount"]),
+                        due_date=datetime.strptime(
+                            installment_data["date"], "%Y-%m-%d"
+                        ).date(),
+                    )
 
-                total_installments += installment.amount
-                self.db.add(installment)
+                    total_installments += installment.amount
+                    session.add(installment)
 
-            return {"success": True}
+                return {"success": True}
 
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"Failed to create installments: {str(e)}",
-            }
+            except Exception as e:
+                return {
+                    "success": False,
+                    "message": f"Failed to create installments: {str(e)}",
+                }
 
     def get_payment_by_id(self, payment_id: int) -> Optional[Payment]:
         """Get payment by ID"""

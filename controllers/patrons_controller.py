@@ -223,3 +223,8 @@ class PatronsController:
                 "active": active_patrons,
                 "inactive": inactive_patrons,
             }
+
+    def get_membership_fee(self, patron_id):
+        with self.db_manager.get_session() as session:
+            patron = session.query(Patron).filter_by(user_id=patron_id).first()
+            return patron.get_membership_fee(session)
