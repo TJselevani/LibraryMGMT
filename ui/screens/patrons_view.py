@@ -17,7 +17,7 @@ from ui.widgets.combobox.material_combo_box import MaterialComboBox
 from utils.constants import COLORS
 
 
-class UsersView(QWidget):
+class PatronsView(QWidget):
     def __init__(self, db_manager):
         super().__init__()
         self.patrons_controller = PatronsController(db_manager)
@@ -54,7 +54,7 @@ class UsersView(QWidget):
 
         # Filter dropdown
         self.filter_combo = MaterialComboBox()
-        self.filter_combo.addItems(["All Users", "Active", "Inactive", "Recent"])
+        self.filter_combo.addItems(["All Users", "MALE", "FEMALE", "Recent"])
         self.filter_combo.setFixedWidth(150)
         self.filter_combo.currentTextChanged.connect(self.filter_table)
 

@@ -41,11 +41,9 @@ class MaterialNavigationRail(QWidget):
 
         # Connect buttons
         self.home_btn.clicked.connect(lambda: self.parent.show_home())
-        self.users_btn.clicked.connect(lambda: self.parent.show_users())
+        self.users_btn.clicked.connect(lambda: self.parent.show_all_tables())
         self.books_btn.clicked.connect(lambda: self.parent.show_data())
-        self.settings_btn.clicked.connect(
-            lambda: self.parent.show_composite_data_view()
-        )
+        self.settings_btn.clicked.connect(lambda: self.parent.show_library_data())
 
         layout.addWidget(self.home_btn)
         layout.addWidget(self.users_btn)

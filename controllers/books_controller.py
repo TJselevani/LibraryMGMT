@@ -70,7 +70,7 @@ class BooksController:
 
             return session.query(Book).filter(Book.book_id.in_(borrowed_book_ids)).all()
 
-    def create_book(self, book_data):
+    def create(self, book_data):
         """Create a new book"""
         try:
             with self.db_manager.get_session() as session:

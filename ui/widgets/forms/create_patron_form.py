@@ -94,7 +94,7 @@ class AddPatronForm(QWidget):
             "membership_status": "PATRON",
         }
 
-        result = self.patrons_controller.create_patron(data)
+        result = self.patrons_controller.create(data)
 
         if result["success"]:
             QMessageBox.information(self, "Success", result["message"])

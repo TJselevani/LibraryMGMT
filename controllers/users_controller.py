@@ -8,7 +8,7 @@ class UsersController:
         self.db_manager = db_manager
 
     # ---------------- CREATE ----------------
-    def create_user(
+    def create(
         self,
         username,
         email,
@@ -38,12 +38,12 @@ class UsersController:
                 raise ValueError("Username, email, or phone number already exists")
 
     # ---------------- READ ----------------
-    def get_user_by_id(self, user_id):
+    def get_by_id(self, user_id):
         """Fetch user by ID"""
         with self.db_manager.get_session() as session:
             return session.get(User, user_id)
 
-    def get_user_by_username(self, username):
+    def get_one(self, username):
         """Fetch user by username"""
         with self.db_manager.get_session() as session:
             return session.query(User).filter_by(username=username).first()

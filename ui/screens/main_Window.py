@@ -11,17 +11,26 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtGui import QFont, QPalette, QColor
 from PyQt5.QtCore import QTimer
 
-from ui.screens.users_view import UsersView
+from ui.screens.patrons_view import PatronsView
+
 from controllers.patrons_controller import PatronsController
+from controllers.books_controller import BooksController
+from controllers.borrowed_books_controller import BorrowedBooksController
+from controllers.payments_controller import PaymentController
+from controllers.users_controller import UsersController
+
 from utils.constants import COLORS
 from ui.widgets.buttons.material_button import MaterialButton
 from ui.widgets.cards.material_card import MaterialStatCard
 from ui.widgets.navigation.sidebar import MaterialNavigationRail
 from ui.widgets.section.material_section import MaterialSection
 from ui.widgets.forms.create_patron_form import AddPatronForm
+from ui.widgets.forms.create_book_form import AddBookForm
+from ui.widgets.forms.create_borrowed_book import AddBorrowedBookForm
+from ui.widgets.forms.create_payment_form import AddPaymentForm
+from ui.widgets.forms.create_user_form import AddUserForm
 from ui.screens.data_view import LibraryDataView
 from ui.screens.composite_data_view import CompositeDataView
-from ui.common.patrons import PatronsView
 
 
 class MainWindow(QMainWindow):
@@ -29,6 +38,12 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.auth_service = auth_service
         self.patrons_controller = PatronsController(self.auth_service.db_manager)
+        self.books_controller = BooksController(self.auth_service.db_manager)
+        self.borrowed_books_controller = BorrowedBooksController(
+            self.auth_service.db_manager
+        )
+        self.payments_controller = PaymentController(self.auth_service.db_manager)
+        self.users_controller = UsersController(self.auth_service.db_manager)
         self.user_info = user_info
         self.logout_requested = False
 
@@ -209,13 +224,13 @@ class MainWindow(QMainWindow):
         add_btn.clicked.connect(self.show_add_user_form)
 
         # Users table
-        self.users_table = UsersView(self.auth_service.db_manager)
+        self.users_table = PatronsView(self.auth_service.db_manager)
         users_section = MaterialSection("All Users", self.users_table)
         self.content_layout.addWidget(users_section)
 
     # In your main window class, replace the show_users method with this:
 
-    def show_composite_data_view(self):
+    def show_all_tables(self):
         """Show the composite data management view"""
         self.clear_content()
 
@@ -378,16 +393,83 @@ class MainWindow(QMainWindow):
         users_section = MaterialSection("Library Data", self.users_table)
         self.content_layout.addWidget(users_section)
 
+    def show_add_patron_form(self):
+        self.clear_content()
+
+        def go_back():
+            self.show_all_tables()
+
+        def on_success():
+            self.show_all_tables()
+
+        form = AddPatronForm(
+            patrons_controller=self.patrons_controller,
+            on_cancel=go_back,
+            on_success=on_success,
+        )
+        self.content_layout.addWidget(form)
+
     def show_add_user_form(self):
         self.clear_content()
 
         def go_back():
-            self.show_users()
+            self.show_all_tables()
 
         def on_success():
-            self.show_users()
+            self.show_all_tables()
 
-        form = AddPatronForm(
+        form = AddUserForm(
+            users_controller=self.users_controller,
+            on_cancel=go_back,
+            on_success=on_success,
+        )
+        self.content_layout.addWidget(form)
+
+    def show_add_book_form(self):
+        self.clear_content()
+
+        def go_back():
+            self.show_all_tables()
+
+        def on_success():
+            self.show_all_tables()
+
+        form = AddBookForm(
+            books_controller=self.books_controller,
+            on_cancel=go_back,
+            on_success=on_success,
+        )
+        self.content_layout.addWidget(form)
+
+    def show_add_borrowed_book_form(self):
+        self.clear_content()
+
+        def go_back():
+            self.show_all_tables()
+
+        def on_success():
+            self.show_all_tables()
+
+        form = AddBorrowedBookForm(
+            books_controller=self.books_controller,
+            borrowed_books_controller=self.borrowed_books_controller,
+            patrons_controller=self.patrons_controller,
+            on_cancel=go_back,
+            on_success=on_success,
+        )
+        self.content_layout.addWidget(form)
+
+    def show_add_payment_form(self):
+        self.clear_content()
+
+        def go_back():
+            self.show_all_tables()
+
+        def on_success():
+            self.show_all_tables()
+
+        form = AddPaymentForm(
+            payments_controller=self.payments_controller,
             patrons_controller=self.patrons_controller,
             on_cancel=go_back,
             on_success=on_success,

@@ -89,7 +89,7 @@ class PatronsController:
                 if not session.query(Patron).filter_by(patron_id=pid).first():
                     return pid
 
-    def create_patron(self, patron_data):
+    def create(self, patron_data):
         """Create a new patron"""
         try:
             with self.db_manager.get_session() as session:

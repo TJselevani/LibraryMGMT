@@ -1,3 +1,5 @@
+import csv
+import json
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -7,10 +9,12 @@ from PyQt5.QtWidgets import (
     QHeaderView,
     QFrame,
     QSizePolicy,
-    QPushButton,
+    QFileDialog,
+    QMessageBox,
 )
 from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtCore import pyqtSignal
+from datetime import datetime
 
 from controllers.patrons_controller import PatronsController
 from controllers.books_controller import BooksController
@@ -146,25 +150,33 @@ class CompositeDataView(QWidget):
         layout.setSpacing(20)
         self.setLayout(layout)
 
-        # View selector buttons
-        self.create_view_selector(layout)
+        # Title + Navigation buttons (in one row)
+        title_layout = QHBoxLayout()
 
-        # Dynamic title section
-        self.title_label = QLabel()
+        self.title_label = QLabel("Library Data Management")
         self.title_label.setFont(QFont("Segoe UI", 32, QFont.Light))
         self.title_label.setStyleSheet(
             f"color: {COLORS['on_surface']}; margin-bottom: 8px;"
         )
-        layout.addWidget(self.title_label)
+        title_layout.addWidget(self.title_label)
+        title_layout.addStretch()
 
-        self.subtitle_label = QLabel()
+        # Create view selector buttons (inline with title)
+        self.create_view_selector(title_layout)
+
+        layout.addLayout(title_layout)
+
+        # Subtitle
+        self.subtitle_label = QLabel(
+            "Manage all core library data: users, patrons, books, and transactions."
+        )
         self.subtitle_label.setFont(QFont("Segoe UI", 14))
         self.subtitle_label.setStyleSheet(
             f"color: {COLORS['on_surface_variant']}; margin-bottom: 24px;"
         )
         layout.addWidget(self.subtitle_label)
 
-        # Action buttons section
+        # Action buttons
         self.create_action_buttons(layout)
 
         # Search and filter section
@@ -177,64 +189,42 @@ class CompositeDataView(QWidget):
         self.update_view_content()
 
     def create_view_selector(self, layout):
-        """Create the view selector buttons at the top"""
-        selector_frame = QFrame()
-        selector_frame.setStyleSheet(
-            f"""
-            QFrame {{
-                background-color: {COLORS['surface']};
-                border-radius: 12px;
-                border: 1px solid {COLORS['outline']};
-                padding: 8px;
-            }}
-        """
-        )
-
-        selector_layout = QHBoxLayout(selector_frame)
-        selector_layout.setContentsMargins(8, 8, 8, 8)
-        selector_layout.setSpacing(4)
+        """Create inline navigation buttons (styled like tabs)"""
 
         self.view_buttons = {}
-        view_icons = {
-            "Users": "👥",
-            "Patrons": "🎓",
-            "Books": "📚",
-            "Borrowed Books": "📖",
-            "Payments": "💳",
-        }
+        view_names = ["Users", "Patrons", "Books", "Payments", "Borrowed Books"]
 
-        for view_name in self.view_configs.keys():
-            btn = QPushButton(f"{view_icons.get(view_name, '📋')} {view_name}")
+        for view_name in view_names:
+            btn = MaterialButton(view_name, button_type="text")
+            btn.setFont(QFont("Segoe UI", 12))
             btn.setCheckable(True)
+
+            # Default inactive style (muted text)
             btn.setStyleSheet(
                 f"""
                 QPushButton {{
-                    background-color: transparent;
-                    border: none;
-                    padding: 12px 16px;
-                    border-radius: 8px;
-                    font-family: 'Segoe UI';
-                    font-size: 14px;
-                    font-weight: 500;
                     color: {COLORS['on_surface_variant']};
-                }}
-                QPushButton:checked {{
-                    background-color: {COLORS['primary']};
-                    color: {COLORS['on_primary']};
+                    font-weight: 500;
+                    border-radius: 6px;
+                    padding: 6px 12px;
                 }}
                 QPushButton:hover {{
+                    background-color: {COLORS.get('surface_variant', '#f0f0f0')};
+                }}
+                QPushButton:checked {{
+                    color: {COLORS['primary']};
                     background-color: {COLORS.get('primary_container', COLORS['surface_variant'])};
+                    font-weight: 600;
                 }}
             """
             )
+
             btn.clicked.connect(lambda checked, name=view_name: self.switch_view(name))
             self.view_buttons[view_name] = btn
-            selector_layout.addWidget(btn)
+            layout.addWidget(btn)
 
         # Set Users as default active
         self.view_buttons["Users"].setChecked(True)
-        selector_layout.addStretch()
-        layout.addWidget(selector_frame)
 
     def create_action_buttons(self, layout):
         """Create the action buttons section"""
@@ -243,6 +233,10 @@ class CompositeDataView(QWidget):
         self.add_btn = MaterialButton("Add New Item", button_type="elevated")
         self.import_btn = MaterialButton("Import Data", button_type="outlined")
         self.export_btn = MaterialButton("Export Data", button_type="outlined")
+
+        # Connect import/export buttons
+        self.import_btn.clicked.connect(self.import_data)
+        self.export_btn.clicked.connect(self.export_data)
 
         # Connect add button to signal
         self.add_btn.clicked.connect(lambda: self.add_requested.emit(self.current_view))
@@ -497,7 +491,14 @@ class CompositeDataView(QWidget):
             self.table.setItem(
                 row, 2, QTableWidgetItem(getattr(payment, "user_name", "") or "")
             )
-            self.table.setItem(row, 3, QTableWidgetItem(payment.payment_type or ""))
+
+            # Ensure payment_type is displayed as string
+            payment_type_text = (
+                payment.payment_type.value
+                if hasattr(payment.payment_type, "value")
+                else str(payment.payment_type or "")
+            )
+            self.table.setItem(row, 3, QTableWidgetItem(payment_type_text))
 
             # Amount with currency formatting
             amount_text = f"${payment.amount:.2f}" if payment.amount else "N/A"
@@ -651,16 +652,21 @@ class CompositeDataView(QWidget):
                 return not item.returned and hasattr(item, "due_date")
 
         elif self.current_view == "Payments":
-            payment_type = (item.payment_type or "").lower()
+            payment_type = str(
+                item.payment_type.value
+                if hasattr(item.payment_type, "value")
+                else item.payment_type
+            ).lower()
+
             if filter_type == "Membership":
                 return "membership" in payment_type
             elif filter_type == "Penalties":
                 return "penalty" in payment_type or "fine" in payment_type
             elif filter_type == "Recent":
-                # Implement date logic for recent payments
+                # TODO: implement date-based filtering for recent
                 return True
             elif filter_type == "Pending":
-                status = getattr(item, "status", "").lower()
+                status = str(getattr(item, "status", "")).lower()
                 return status == "pending"
 
         return True
@@ -699,3 +705,288 @@ class CompositeDataView(QWidget):
 
         current_data = self.get_current_data()
         return [current_data[row] for row in selected_rows if row < len(current_data)]
+
+    def import_data(self):
+        """Import data based on current view"""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            f"Import {self.current_view} Data",
+            "",
+            "CSV Files (*.csv);;JSON Files (*.json);;All Files (*)",
+        )
+
+        if not file_path:
+            return
+
+        try:
+            if file_path.endswith(".csv"):
+                self.import_csv(file_path)
+            elif file_path.endswith(".json"):
+                self.import_json(file_path)
+            else:
+                QMessageBox.warning(self, "Warning", "Unsupported file format!")
+                return
+
+            # Refresh the view after import
+            self.load_all_data()
+            self.populate_current_table()
+
+            QMessageBox.information(
+                self, "Success", f"{self.current_view} data imported successfully!"
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to import data: {str(e)}")
+
+    def export_data(self):
+        """Export current view data"""
+        file_path, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            f"Export {self.current_view} Data",
+            f"{self.current_view.lower().replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+            "CSV Files (*.csv);;JSON Files (*.json)",
+        )
+
+        if not file_path:
+            return
+
+        try:
+            current_data = self.get_current_data()
+
+            if "CSV" in selected_filter:
+                self.export_csv(file_path, current_data)
+            elif "JSON" in selected_filter:
+                self.export_json(file_path, current_data)
+
+            QMessageBox.information(
+                self, "Success", f"{self.current_view} data exported successfully!"
+            )
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Failed to export data: {str(e)}")
+
+    def import_csv(self, file_path):
+        """Import data from CSV file"""
+        with open(file_path, "r", newline="", encoding="utf-8") as csvfile:
+            reader = csv.DictReader(csvfile)
+
+            if self.current_view == "Users":
+                self.import_users_csv(reader)
+            elif self.current_view == "Patrons":
+                self.import_patrons_csv(reader)
+            elif self.current_view == "Books":
+                self.import_books_csv(reader)
+            elif self.current_view == "Payments":
+                self.import_payments_csv(reader)
+
+    def import_json(self, file_path):
+        """Import data from JSON file"""
+        with open(file_path, "r", encoding="utf-8") as jsonfile:
+            data = json.load(jsonfile)
+
+            if self.current_view == "Users":
+                self.import_users_json(data)
+            elif self.current_view == "Patrons":
+                self.import_patrons_json(data)
+            elif self.current_view == "Books":
+                self.import_books_json(data)
+            elif self.current_view == "Payments":
+                self.import_payments_json(data)
+
+    def export_csv(self, file_path, data):
+        """Export data to CSV file"""
+        if not data:
+            return
+
+        # config = self.view_configs[self.current_view]
+
+        with open(file_path, "w", newline="", encoding="utf-8") as csvfile:
+            fieldnames = self.get_export_fieldnames()
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for item in data:
+                row_data = self.convert_item_to_dict(item)
+                writer.writerow(row_data)
+
+    def export_json(self, file_path, data):
+        """Export data to JSON file"""
+        export_data = []
+
+        for item in data:
+            item_dict = self.convert_item_to_dict(item)
+            export_data.append(item_dict)
+
+        with open(file_path, "w", encoding="utf-8") as jsonfile:
+            json.dump(export_data, jsonfile, indent=2, default=str)
+
+    def get_export_fieldnames(self):
+        """Get fieldnames for CSV export based on current view"""
+        if self.current_view == "Users":
+            return ["id", "username", "email", "phone_number", "role", "is_active"]
+        elif self.current_view == "Patrons":
+            return [
+                "patron_id",
+                "first_name",
+                "last_name",
+                "gender",
+                "date_of_birth",
+                "institution",
+                "grade_level",
+                "residence",
+                "phone_number",
+                "membership_status",
+            ]
+        elif self.current_view == "Books":
+            return [
+                "book_id",
+                "title",
+                "author",
+                "accession_no",
+                "isbn",
+                "category",
+                "status",
+                "location",
+            ]
+        elif self.current_view == "Borrowed Books":
+            return [
+                "borrow_id",
+                "user_id",
+                "book_id",
+                "borrow_date",
+                "due_date",
+                "return_date",
+                "returned",
+            ]
+        elif self.current_view == "Payments":
+            return [
+                "payment_id",
+                "user_id",
+                "payment_type",
+                "amount",
+                "payment_date",
+                "status",
+            ]
+        return []
+
+    def convert_item_to_dict(self, item):
+        """Convert database model to dictionary for export"""
+        if self.current_view == "Users":
+            return {
+                "id": item.id,
+                "username": item.username,
+                "email": item.email,
+                "phone_number": item.phone_number,
+                "role": (
+                    item.role.value if hasattr(item.role, "value") else str(item.role)
+                ),
+                "is_active": item.is_active,
+            }
+        elif self.current_view == "Patrons":
+            return {
+                "patron_id": item.patron_id,
+                "first_name": item.first_name,
+                "last_name": item.last_name,
+                "gender": item.gender,
+                "date_of_birth": item.date_of_birth,
+                "institution": item.institution,
+                "grade_level": item.grade_level,
+                "residence": item.residence,
+                "phone_number": item.phone_number,
+                "membership_status": item.membership_status,
+            }
+        elif self.current_view == "Books":
+            return {
+                "book_id": item.book_id,
+                "title": item.title,
+                "author": item.author,
+                "accession_no": item.accession_no,
+                "isbn": getattr(item, "isbn", ""),
+                "category": getattr(item, "category", ""),
+                "status": getattr(item, "status", "Available"),
+                "location": getattr(item, "location", ""),
+            }
+        elif self.current_view == "Borrowed Books":
+            return {
+                "borrow_id": item.borrow_id,
+                "user_id": item.user_id,
+                "book_id": item.book_id,
+                "borrow_date": item.borrow_date,
+                "due_date": getattr(item, "due_date", ""),
+                "return_date": item.return_date,
+                "returned": item.returned,
+            }
+        elif self.current_view == "Payments":
+            return {
+                "payment_id": item.payment_id,
+                "user_id": item.user_id,
+                "payment_type": item.payment_type,
+                "amount": item.amount,
+                "payment_date": item.payment_date,
+                "status": getattr(item, "status", "Completed"),
+            }
+        return {}
+
+    def import_users_csv(self, reader):
+        """Import users from CSV reader"""
+        for row in reader:
+            # Implement user creation logic using your users_controller
+            # Example:
+            # self.users_controller.create_user(
+            #     username=row.get('username'),
+            #     email=row.get('email'),
+            #     phone_number=row.get('phone_number'),
+            #     role=row.get('role'),
+            #     is_active=row.get('is_active', 'true').lower() == 'true'
+            # )
+            pass
+
+    def import_patrons_csv(self, reader):
+        """Import patrons from CSV reader"""
+        for row in reader:
+            # Implement patron creation logic using your patrons_controller
+            # Example:
+            # self.patrons_controller.create_patron(
+            #     patron_id=row.get('patron_id'),
+            #     first_name=row.get('first_name'),
+            #     last_name=row.get('last_name'),
+            #     # ... other fields
+            # )
+            pass
+
+    def import_books_csv(self, reader):
+        """Import books from CSV reader"""
+        for row in reader:
+            # Implement book creation logic using your books_controller
+            pass
+
+    def import_payments_csv(self, reader):
+        """Import payments from CSV reader"""
+        for row in reader:
+            # Implement payment creation logic using your payments_controller
+            pass
+
+    # Similar methods for JSON imports...
+    def import_users_json(self, data):
+        """Import users from JSON data"""
+        for item in data:
+            # Implement user creation from JSON
+            pass
+
+    def import_patrons_json(self, data):
+        """Import patrons from JSON data"""
+        for item in data:
+            # Implement patron creation from JSON
+            pass
+
+    def import_books_json(self, data):
+        """Import books from JSON data"""
+        for item in data:
+            # Implement book creation from JSON
+            pass
+
+    def import_payments_json(self, data):
+        """Import payments from JSON data"""
+        for item in data:
+            # Implement payment creation from JSON
+            pass
