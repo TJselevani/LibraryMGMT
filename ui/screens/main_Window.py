@@ -16,7 +16,7 @@ from ui.screens.patrons_view import PatronsView
 from controllers.patrons_controller import PatronsController
 from controllers.books_controller import BooksController
 from controllers.borrowed_books_controller import BorrowedBooksController
-from controllers.payments_controller import PaymentController
+from controllers.payments_controller import PaymentController, PaymentItemController
 from controllers.users_controller import UsersController
 
 from utils.constants import COLORS
@@ -41,6 +41,9 @@ class MainWindow(QMainWindow):
         self.books_controller = BooksController(self.auth_service.db_manager)
         self.borrowed_books_controller = BorrowedBooksController(
             self.auth_service.db_manager
+        )
+        self.payment_items_controller = PaymentItemController(
+            (self.auth_service.db_manager)
         )
         self.payments_controller = PaymentController(self.auth_service.db_manager)
         self.users_controller = UsersController(self.auth_service.db_manager)
@@ -471,6 +474,7 @@ class MainWindow(QMainWindow):
         form = AddPaymentForm(
             payments_controller=self.payments_controller,
             patrons_controller=self.patrons_controller,
+            payment_items_controller=self.payment_items_controller,
             on_cancel=go_back,
             on_success=on_success,
         )

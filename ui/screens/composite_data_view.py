@@ -487,18 +487,27 @@ class CompositeDataView(QWidget):
         """Populate payments table"""
         for row, payment in enumerate(payments):
             self.table.setItem(row, 0, QTableWidgetItem(str(payment.payment_id)))
-            self.table.setItem(row, 1, QTableWidgetItem(str(payment.user_id)))
+
             self.table.setItem(
-                row, 2, QTableWidgetItem(getattr(payment, "user_name", "") or "")
+                row,
+                1,
+                QTableWidgetItem(str(payment.patron.patron_id)),
+            )
+            self.table.setItem(
+                row,
+                2,
+                QTableWidgetItem(
+                    str(payment.patron.first_name + " " + payment.patron.last_name)
+                ),
             )
 
             # Ensure payment_type is displayed as string
-            payment_type_text = (
-                payment.payment_type.value
-                if hasattr(payment.payment_type, "value")
-                else str(payment.payment_type or "")
+            payment_type = (
+                payment.payment_item.display_name.lower()
+                if payment.payment_item and payment.payment_item.display_name
+                else "unknown"
             )
-            self.table.setItem(row, 3, QTableWidgetItem(payment_type_text))
+            self.table.setItem(row, 3, QTableWidgetItem(payment_type))
 
             # Amount with currency formatting
             amount_text = f"${payment.amount:.2f}" if payment.amount else "N/A"
@@ -509,7 +518,7 @@ class CompositeDataView(QWidget):
             )
 
             # Status with color coding
-            status = getattr(payment, "status", "Completed") or "Completed"
+            status = getattr(payment.payment_item, "status", "Completed") or "Completed"
             status_item = QTableWidgetItem(status)
 
             if status.lower() == "completed":
@@ -652,11 +661,11 @@ class CompositeDataView(QWidget):
                 return not item.returned and hasattr(item, "due_date")
 
         elif self.current_view == "Payments":
-            payment_type = str(
-                item.payment_type.value
-                if hasattr(item.payment_type, "value")
-                else item.payment_type
-            ).lower()
+            payment_type = (
+                item.payment_item.name.lower()
+                if item.payment_item and item.payment_item.name
+                else "unknown"
+            )
 
             if filter_type == "Membership":
                 return "membership" in payment_type
