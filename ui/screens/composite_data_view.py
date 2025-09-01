@@ -510,7 +510,9 @@ class CompositeDataView(QWidget):
             self.table.setItem(row, 3, QTableWidgetItem(payment_type))
 
             # Amount with currency formatting
-            amount_text = f"${payment.amount_paid:.2f}" if payment.amount_paid else "N/A"
+            amount_text = (
+                f"${payment.amount_paid:.2f}" if payment.amount_paid else "N/A"
+            )
             self.table.setItem(row, 4, QTableWidgetItem(amount_text))
 
             self.table.setItem(
@@ -518,13 +520,22 @@ class CompositeDataView(QWidget):
             )
 
             # Status with color coding
-            status = getattr(payment.payment_item, "status", "Completed") or "Completed"
+            # Ensure the payment status is updated correctly
+            payment.update_status()
+
+            status = (
+                payment.status.value
+                if hasattr(payment.status, "value")
+                else str(payment.status)
+            )
             status_item = QTableWidgetItem(status)
 
             if status.lower() == "completed":
                 status_item.setForeground(QColor(COLORS["success"]))
             elif status.lower() == "pending":
                 status_item.setForeground(QColor(COLORS["warning"]))
+            elif status.lower() == "partial":
+                status_item.setForeground(QColor(COLORS["info"]))
             else:
                 status_item.setForeground(QColor(COLORS["error"]))
 
@@ -663,7 +674,7 @@ class CompositeDataView(QWidget):
         elif self.current_view == "Payments":
             payment_type = (
                 item.payment_item.name.lower()
-                if item.payment_item and item.payment_item.name
+                if item.payment_item.name and item.payment_item.name
                 else "unknown"
             )
 

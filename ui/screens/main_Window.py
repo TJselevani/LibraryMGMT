@@ -31,6 +31,7 @@ from ui.widgets.forms.create_payment_form import AddPaymentForm
 from ui.widgets.forms.create_user_form import AddUserForm
 from ui.screens.data_view import LibraryDataView
 from ui.screens.composite_data_view import CompositeDataView
+from ui.screens.attendance_view import AttendanceView
 
 
 class MainWindow(QMainWindow):
@@ -191,9 +192,13 @@ class MainWindow(QMainWindow):
         # self.content_layout.addWidget(users_section)
 
         # Users table
-        self.users_table = PatronsView(self.auth_service.db_manager)
-        users_table_section = MaterialSection("Today's Users", self.users_table)
-        self.content_layout.addWidget(users_table_section)
+        # self.users_table = PatronsView(self.auth_service.db_manager)
+        # users_table_section = MaterialSection("Today's Users", self.users_table)
+        # self.content_layout.addWidget(users_table_section)
+
+        # Attendance section
+        self.attendance_view = AttendanceView(self.auth_service.db_manager)
+        self.content_layout.addWidget(self.attendance_view)
 
     def show_users(self):
         self.clear_content()
@@ -227,7 +232,7 @@ class MainWindow(QMainWindow):
         add_btn.clicked.connect(self.show_add_user_form)
 
         # Users table
-        self.users_table = PatronsView(self.auth_service.db_manager)
+        self.users_table = AttendanceView(self.auth_service.db_manager)
         users_section = MaterialSection("All Users", self.users_table)
         self.content_layout.addWidget(users_section)
 

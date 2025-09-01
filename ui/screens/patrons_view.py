@@ -81,7 +81,7 @@ class PatronsView(QWidget):
 
     def populate_table(self, users):
         self.table.setRowCount(len(users))
-        self.table.setColumnCount(10)
+        self.table.setColumnCount(14)
 
         headers = [
             "Patron ID",
@@ -93,73 +93,80 @@ class PatronsView(QWidget):
             "Grade",
             "Residence",
             "Phone",
-            "Membership",
+            "Membership Status",
+            "Membership Type",
+            "Start Date",
+            "Expiry Date",
+            "Borrowed Books",
         ]
         self.table.setHorizontalHeaderLabels(headers)
 
-        # Set column widths
         header = self.table.horizontalHeader()
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # Patron ID
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)  # First Name
-        header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Last Name
-        header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Gender
-        header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # DOB
-        header.setSectionResizeMode(5, QHeaderView.Stretch)  # Institution
-        header.setSectionResizeMode(6, QHeaderView.ResizeToContents)  # Grade
-        header.setSectionResizeMode(7, QHeaderView.Stretch)  # Residence
-        header.setSectionResizeMode(8, QHeaderView.ResizeToContents)  # Phone
-        header.setSectionResizeMode(9, QHeaderView.ResizeToContents)  # Membership
+        for i in range(len(headers)):
+            header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
 
         for row_idx, user in enumerate(users):
-            # Patron ID
-            item = QTableWidgetItem(str(user.patron_id))
-            item.setFont(QFont("Segoe UI", 10, QFont.Bold))
-            item.setForeground(QColor(COLORS["primary"]))
-            self.table.setItem(row_idx, 0, item)
-
-            # First Name
+            self.table.setItem(row_idx, 0, QTableWidgetItem(str(user.patron_id)))
             self.table.setItem(row_idx, 1, QTableWidgetItem(user.first_name or ""))
-
-            # Last Name
             self.table.setItem(row_idx, 2, QTableWidgetItem(user.last_name or ""))
-
-            # Gender
             self.table.setItem(row_idx, 3, QTableWidgetItem(user.gender or ""))
-
-            # Date of Birth
-            dob_text = str(user.date_of_birth) if user.date_of_birth else "N/A"
-            self.table.setItem(row_idx, 4, QTableWidgetItem(dob_text))
-
-            # Institution
+            self.table.setItem(
+                row_idx,
+                4,
+                QTableWidgetItem(
+                    str(user.date_of_birth) if user.date_of_birth else "N/A"
+                ),
+            )
             self.table.setItem(row_idx, 5, QTableWidgetItem(user.institution or "N/A"))
-
-            # Grade Level
             self.table.setItem(row_idx, 6, QTableWidgetItem(user.grade_level or "N/A"))
-
-            # Residence
             self.table.setItem(row_idx, 7, QTableWidgetItem(user.residence or "N/A"))
-
-            # Phone Number
             self.table.setItem(row_idx, 8, QTableWidgetItem(user.phone_number or "N/A"))
 
-            # Membership Status with color coding
-            membership = user.membership_status or "Unknown"
-            membership_item = QTableWidgetItem(membership.value if membership else "")
-
-            # Color code membership status
+            # Membership Status
+            membership = (
+                user.membership_status.value if user.membership_status else "Unknown"
+            )
+            membership_item = QTableWidgetItem(membership)
             if membership == "active":
                 membership_item.setForeground(QColor(COLORS["success"]))
                 membership_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
             elif membership == "inactive":
                 membership_item.setForeground(QColor(COLORS["error"]))
-            elif membership == "pending":
+            elif membership == "expired":
                 membership_item.setForeground(QColor(COLORS["warning"]))
-            else:
-                membership_item.setForeground(QColor(COLORS["on_surface_variant"]))
-
             self.table.setItem(row_idx, 9, membership_item)
 
-        # Adjust row heights
+            # Membership Type
+            self.table.setItem(
+                row_idx, 10, QTableWidgetItem(user.membership_type or "N/A")
+            )
+
+            # Membership Start & Expiry
+            self.table.setItem(
+                row_idx,
+                11,
+                QTableWidgetItem(
+                    str(user.membership_start_date)
+                    if user.membership_start_date
+                    else "N/A"
+                ),
+            )
+            self.table.setItem(
+                row_idx,
+                12,
+                QTableWidgetItem(
+                    str(user.membership_expiry_date)
+                    if user.membership_expiry_date
+                    else "N/A"
+                ),
+            )
+
+            # Borrowed Books (titles)
+            borrowed_titles = (
+                ", ".join(b.book.title for b in user.borrowed_books) or "None"
+            )
+            self.table.setItem(row_idx, 13, QTableWidgetItem(borrowed_titles))
+
         for row in range(self.table.rowCount()):
             self.table.setRowHeight(row, 50)
 
@@ -172,13 +179,13 @@ class PatronsView(QWidget):
         for user in self.users_data:
             # Apply search filter
             if search_text:
-                searchable_text = f"{user.first_name} {user.last_name} {user.phone_number or ''} {user.institution or ''}".lower()
+                searchable_text = f"{user.first_name} {user.last_name} {user.gender}  {user.phone_number or ''} {user.institution or ''}".lower()
                 if search_text not in searchable_text:
                     continue
 
             # Apply membership filter
             if filter_type != "All Users":
-                membership = (user.membership_status or "").lower()
+                membership = user.membership_status or ""
                 if filter_type == "Active" and membership != "active":
                     continue
                 elif filter_type == "Inactive" and membership != "inactive":

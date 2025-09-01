@@ -591,3 +591,23 @@ class PaymentService:
                         session.add(price)
 
         session.commit()
+
+
+# models.py
+class Attendance(Base):
+    __tablename__ = "attendances"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    patron_id = Column(
+        Integer, ForeignKey("patrons.user_id", ondelete="CASCADE"), nullable=False
+    )
+    attendance_date = Column(Date, default=date.today, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    patron = relationship("Patron", backref="attendances")
+
+    __table_args__ = (
+        UniqueConstraint(
+            "patron_id", "attendance_date", name="unique_daily_attendance"
+        ),
+    )

@@ -2,7 +2,8 @@ import random
 import string
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError
-from db.models import Patron
+from sqlalchemy.orm import joinedload
+from db.models import Patron, Payment, BorrowedBook
 
 
 class PatronsController:
@@ -11,7 +12,17 @@ class PatronsController:
 
     def get_all(self):
         with self.db_manager.get_session() as session:
-            return session.query(Patron).all()
+            # Eager-load payments and payment_item to avoid DetachedInstanceError
+            patrons = (
+                session.query(Patron)
+                .options(
+                    joinedload(Patron.payments).joinedload(Payment.payment_item),
+                    joinedload(Patron.payments).joinedload(Payment.partial_payments),
+                    joinedload(Patron.borrowed_books).joinedload(BorrowedBook.book),
+                )
+                .all()
+            )
+            return patrons
 
     def get_patron_by_id(self, user_id):
         with self.db_manager.get_session() as session:

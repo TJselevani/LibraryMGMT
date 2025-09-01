@@ -13,6 +13,7 @@ COLORS = {
     "error": "#F44336",  # Red 500
     "success": "#4CAF50",  # Green 500
     "warning": "#FF9800",  # Orange 500,
+    "info": "#42A5F5",
     # ✅ Contrast colors
     "on_primary": "#FFFFFF",  # White (for text/icons on blue primary)
     "on_secondary": "#000000",  # Black (teal is light, so dark text works)
