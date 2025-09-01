@@ -406,14 +406,14 @@ class CompositeDataView(QWidget):
 
             # Membership status with color coding
             membership = patron.membership_status or "Unknown"
-            membership_item = QTableWidgetItem(membership)
+            membership_item = QTableWidgetItem(membership.value if membership else "")
 
-            if membership.lower() == "active":
+            if membership == "active":
                 membership_item.setForeground(QColor(COLORS["success"]))
                 membership_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
-            elif membership.lower() == "inactive":
+            elif membership == "inactive":
                 membership_item.setForeground(QColor(COLORS["error"]))
-            elif membership.lower() == "pending":
+            elif membership == "pending":
                 membership_item.setForeground(QColor(COLORS["warning"]))
             else:
                 membership_item.setForeground(QColor(COLORS["on_surface_variant"]))
@@ -510,7 +510,7 @@ class CompositeDataView(QWidget):
             self.table.setItem(row, 3, QTableWidgetItem(payment_type))
 
             # Amount with currency formatting
-            amount_text = f"${payment.amount:.2f}" if payment.amount else "N/A"
+            amount_text = f"${payment.amount_paid:.2f}" if payment.amount_paid else "N/A"
             self.table.setItem(row, 4, QTableWidgetItem(amount_text))
 
             self.table.setItem(
@@ -630,7 +630,7 @@ class CompositeDataView(QWidget):
                 return str(item.role).lower() == "staff"
 
         elif self.current_view == "Patrons":
-            membership = (item.membership_status or "").lower()
+            membership = item.membership_status.value or ""
             if filter_type == "Active":
                 return membership == "active"
             elif filter_type == "Inactive":

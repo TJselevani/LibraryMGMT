@@ -144,15 +144,15 @@ class PatronsView(QWidget):
 
             # Membership Status with color coding
             membership = user.membership_status or "Unknown"
-            membership_item = QTableWidgetItem(membership)
+            membership_item = QTableWidgetItem(membership.value if membership else "")
 
             # Color code membership status
-            if membership.lower() == "active":
+            if membership == "active":
                 membership_item.setForeground(QColor(COLORS["success"]))
                 membership_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
-            elif membership.lower() == "inactive":
+            elif membership == "inactive":
                 membership_item.setForeground(QColor(COLORS["error"]))
-            elif membership.lower() == "pending":
+            elif membership == "pending":
                 membership_item.setForeground(QColor(COLORS["warning"]))
             else:
                 membership_item.setForeground(QColor(COLORS["on_surface_variant"]))

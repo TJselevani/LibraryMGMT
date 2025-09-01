@@ -1,17 +1,15 @@
-# Enhanced payments_controller.py
+# Enhanced payments_controller.py - Simplified Partial Payment System
 from datetime import datetime, date
 from sqlalchemy.orm import joinedload
 from db.models import (
     Payment,
     Patron,
-    Installment,
+    PartialPayment,
     PaymentItem,
-    PaymentItemPrice,
     PaymentService,
     PaymentStatus,
-    Category,
 )
-from typing import Dict, List
+from typing import Dict
 
 
 class PaymentController:
@@ -21,14 +19,14 @@ class PaymentController:
     # ---------- GET METHODS ----------
 
     def get_all(self):
-        """Get all payments with patron, payment_item and installments eagerly loaded"""
+        """Get all payments with patron and payment_item eagerly loaded"""
         with self.db_manager.get_session() as session:
             return (
                 session.query(Payment)
                 .options(
                     joinedload(Payment.patron),
                     joinedload(Payment.payment_item),
-                    joinedload(Payment.installments),
+                    joinedload(Payment.partial_payments),
                 )
                 .order_by(Payment.payment_date.desc())
                 .all()
@@ -42,7 +40,7 @@ class PaymentController:
                 .options(
                     joinedload(Payment.patron),
                     joinedload(Payment.payment_item),
-                    joinedload(Payment.installments),
+                    joinedload(Payment.partial_payments),
                 )
                 .filter(Payment.payment_id == payment_id)
                 .first()
@@ -56,202 +54,409 @@ class PaymentController:
                 .options(
                     joinedload(Payment.patron),
                     joinedload(Payment.payment_item),
-                    joinedload(Payment.installments),
+                    joinedload(Payment.partial_payments),
                 )
                 .filter(Payment.user_id == user_id)
                 .order_by(Payment.payment_date.desc())
                 .all()
             )
 
-    def get_by_payment_item(self, payment_item_name):
-        """Get all payments of a specific payment item type"""
-        with self.db_manager.get_session() as session:
-            return (
-                session.query(Payment)
-                .join(PaymentItem)
-                .options(
-                    joinedload(Payment.patron),
-                    joinedload(Payment.payment_item),
-                    joinedload(Payment.installments),
-                )
-                .filter(PaymentItem.name == payment_item_name)
-                .order_by(Payment.payment_date.desc())
-                .all()
-            )
-
-    def get_by_status(self, status):
-        """Get payments by status"""
-        with self.db_manager.get_session() as session:
-            return (
-                session.query(Payment)
-                .options(
-                    joinedload(Payment.patron),
-                    joinedload(Payment.payment_item),
-                    joinedload(Payment.installments),
-                )
-                .filter(Payment.status == status)
-                .order_by(Payment.payment_date.desc())
-                .all()
-            )
-
-    def get_pending_installments(self, user_id=None):
-        """Get pending installments, optionally filtered by patron"""
+    def get_incomplete_payments(self, user_id=None):
+        """Get all incomplete payments, optionally filtered by patron"""
         with self.db_manager.get_session() as session:
             query = (
-                session.query(Installment)
-                .join(Payment)
+                session.query(Payment)
                 .options(
-                    joinedload(Installment.payment).joinedload(Payment.patron),
-                    joinedload(Installment.payment).joinedload(Payment.payment_item),
+                    joinedload(Payment.patron),
+                    joinedload(Payment.payment_item),
+                    joinedload(Payment.partial_payments),
                 )
                 .filter(
-                    Installment.is_paid.is_(False), Installment.due_date <= date.today()
+                    Payment.status.in_([PaymentStatus.PENDING, PaymentStatus.PARTIAL])
                 )
             )
 
             if user_id:
                 query = query.filter(Payment.user_id == user_id)
 
-            return query.order_by(Installment.due_date.asc()).all()
+            return query.order_by(Payment.created_at.desc()).all()
+
+    def get_patron_incomplete_payment(self, user_id, payment_item_name):
+        """Get existing incomplete payment for a patron and payment item"""
+        with self.db_manager.get_session() as session:
+            return PaymentService.get_existing_incomplete_payment(
+                session, user_id, payment_item_name
+            )
 
     # ---------- CREATE ----------
     def create(self, payment_data: Dict) -> Dict:
-        """Create a new payment with enhanced validation"""
+        """Create a new payment or add to existing incomplete payment"""
         with self.db_manager.get_session() as session:
             try:
-                # 1. Validate patron exists
-                patron = (
-                    session.query(Patron)
-                    .filter(Patron.user_id == payment_data.get("user_id"))
-                    .first()
-                )
+                # 1. Validate required fields
+                required_fields = [
+                    "user_id",
+                    "payment_item_name",
+                    "payment_item_id",
+                    "amount",
+                    "payment_date",
+                ]
+                for field in required_fields:
+                    if not payment_data.get(field):
+                        return {
+                            "success": False,
+                            "message": f"Missing required field: {field}",
+                        }
+
+                # Check if we have either payment_item_id or payment_item_name
+                payment_item_id = payment_data.get("payment_item_id")
+                payment_item_name = payment_data.get("payment_item_name")
+
+                if not payment_item_id and not payment_item_name:
+                    return {
+                        "success": False,
+                        "message": "Either payment_item_id or payment_item_name is required",
+                    }
+
+                # 2. Validate patron exists
+                user_id = payment_data.get("user_id")
+                patron = session.query(Patron).filter(Patron.user_id == user_id).first()
                 if not patron:
                     return {
                         "success": False,
-                        "message": f"Patron {payment_data.get('user_id')} not found",
+                        "message": f"Patron {user_id} not found",
                     }
 
-                # 2. Validate payment item exists and is active
-                payment_item = (
-                    session.query(PaymentItem)
-                    .filter(
-                        PaymentItem.name == payment_data.get("payment_item_name"),
-                        PaymentItem.is_active.is_(True),
+                # 3. Enhanced payment item validation
+                print(f"DEBUG: Looking for payment item: '{payment_item_name}'")
+
+                # Get payment item (prefer ID over name)
+                if payment_item_id:
+                    payment_item = (
+                        session.query(PaymentItem)
+                        .filter(
+                            PaymentItem.id == payment_item_id,
+                            PaymentItem.is_active.is_(True),
+                        )
+                        .first()
                     )
-                    .first()
-                )
-                if not payment_item:
-                    return {
-                        "success": False,
-                        "message": f"Payment item '{payment_data.get('payment_item_name')}' not found or inactive",
-                    }
 
-                # 3. Validate payment data
-                validation_errors = PaymentService.validate_payment_data(
-                    payment_data, patron, payment_item
-                )
-                if validation_errors:
-                    return {
-                        "success": False,
-                        "message": "Validation errors: " + "; ".join(validation_errors),
-                    }
-
-                # 4. Determine payment amount and status
-                expected_amount = PaymentService.get_payment_amount(
-                    payment_item, patron
-                )
-                installments_data = payment_data.get("installments", [])
-
-                if installments_data:
-                    # Installment payment
-                    total_amount = sum(
-                        inst.get("amount", 0) for inst in installments_data
-                    )
-                    status = (
-                        PaymentStatus.PENDING
-                    )  # Will be updated based on installments
+                    if not payment_item:
+                        return {
+                            "success": False,
+                            "message": f"Payment item with ID {payment_item_id} not found or inactive",
+                        }
                 else:
-                    # Full payment
-                    total_amount = expected_amount
-                    status = PaymentStatus.COMPLETED
-
-                # 5. Create payment record
-                payment = Payment(
-                    user_id=payment_data["user_id"],
-                    payment_item_id=payment_item.id,
-                    amount=total_amount,
-                    payment_date=datetime.strptime(
-                        payment_data["payment_date"], "%Y-%m-%d"
-                    ).date(),
-                    status=status,
-                    notes=payment_data.get("notes"),
-                )
-
-                session.add(payment)
-                session.flush()  # Get payment ID
-
-                # 6. Create installments if specified
-                if installments_data:
-                    installment_result = self._create_installments(
-                        session, payment.payment_id, installments_data
+                    # Fallback to name-based lookup
+                    payment_item = (
+                        session.query(PaymentItem)
+                        .filter(
+                            PaymentItem.name == payment_item_name,
+                            PaymentItem.is_active.is_(True),
+                        )
+                        .first()
                     )
-                    if not installment_result["success"]:
-                        session.rollback()
-                        return installment_result
 
-                    # Update payment status based on installments
-                    payment.update_status()
+                    if not payment_item:
+                        available_items = (
+                            session.query(PaymentItem)
+                            .filter(PaymentItem.is_active.is_(True))
+                            .all()
+                        )
+                        available_names = [f"'{item.name}'" for item in available_items]
+                        return {
+                            "success": False,
+                            "message": f"Payment item '{payment_item_name}' not found or inactive. Available: {', '.join(available_names)}",
+                        }
 
-                # 7. Handle post-payment actions (e.g., activate membership)
-                self._handle_post_payment_actions(
-                    session, payment, patron, payment_item
+                # Check if payment item is active
+                if not payment_item.is_active:
+                    return {
+                        "success": False,
+                        "message": f"Payment item '{payment_item_name}' is inactive",
+                    }
+
+                print(
+                    f"DEBUG: Found payment item: {payment_item.name}, is_membership: {payment_item.is_membership}"
                 )
 
-                session.commit()
+                # 4. Validate payment amount
+                try:
+                    amount_to_pay = float(payment_data.get("amount", 0))
+                except (ValueError, TypeError):
+                    return {
+                        "success": False,
+                        "message": "Invalid payment amount format",
+                    }
 
-                return {
-                    "success": True,
-                    "message": f"Payment of KSh {payment.amount:.2f} for {payment_item.display_name} created successfully",
-                    "payment_id": payment.payment_id,
-                }
+                if amount_to_pay <= 0:
+                    return {
+                        "success": False,
+                        "message": "Payment amount must be positive",
+                    }
+                print(f"DEBUG: payment amount: '{amount_to_pay}'")
+
+                # 5. Check for existing incomplete payment
+                existing_payment = PaymentService.get_existing_incomplete_payment(
+                    session, user_id, payment_item_name
+                )
+
+                if existing_payment:
+                    print(f"DEBUG: Existing payment found: '{existing_payment}'")
+                    # Add to existing payment
+                    return self._add_partial_payment(
+                        session, existing_payment, amount_to_pay, payment_data
+                    )
+                else:
+                    # Create new payment
+                    print("DEBUG: calling Creating new payment")
+                    return self._create_new_payment(
+                        session, patron, payment_item, amount_to_pay, payment_data
+                    )
 
             except Exception as e:
-                session.rollback()
-                return {"success": False, "message": f"Unexpected error: {str(e)}"}
+                import traceback
 
-    def _create_installments(
-        self, session, payment_id: int, installments_data: List[Dict]
-    ) -> Dict:
-        """Create installment records for a payment"""
-        try:
-            for installment_data in installments_data:
-                installment = Installment(
-                    payment_id=payment_id,
-                    installment_number=installment_data["installment_number"],
-                    amount=float(installment_data["amount"]),
-                    due_date=datetime.strptime(
-                        installment_data["date"], "%Y-%m-%d"
-                    ).date(),
-                    notes=installment_data.get("notes"),
+                print(f"ERROR in create method: {str(e)}")
+                print(f"Traceback: {traceback.format_exc()}")
+                return {
+                    "success": False,
+                    "message": f"Error creating payment: {str(e)}",
+                }
+
+    def get_existing_incomplete_payment_by_id(self, user_id, payment_item_id):
+        """Get existing incomplete payment by payment item ID instead of name"""
+        with self.db_manager.get_session() as session:
+            return (
+                session.query(Payment)
+                .options(joinedload(Payment.partial_payments))
+                .filter(
+                    Payment.user_id == user_id,
+                    Payment.payment_item_id == payment_item_id,
+                    Payment.status.in_([PaymentStatus.PENDING, PaymentStatus.PARTIAL]),
+                    Payment.status != PaymentStatus.EXPIRED,
                 )
-                session.add(installment)
+                .first()
+            )
 
-            return {"success": True}
+    def debug_payment_items(self):
+        """Debug method to check what payment items exist"""
+        with self.db_manager.get_session() as session:
+            items = session.query(PaymentItem).all()
+            print("\n=== DEBUG: Payment Items in Database ===")
+            if not items:
+                print("No payment items found!")
+                return []
 
+            for item in items:
+                print(f"ID: {item.id}")
+                print(f"Name: '{item.name}'")
+                print(f"Display Name: {item.display_name}")
+                print(f"Active: {item.is_active}")
+                print(f"Is Membership: {item.is_membership}")
+                print(f"Base Amount: {item.base_amount}")
+                print("---")
+
+            return items
+
+    def ensure_payment_items_exist(self):
+        """Ensure payment items are initialized"""
+        try:
+            with self.db_manager.get_session() as session:
+                count = session.query(PaymentItem).count()
+                if count == 0:
+                    print("No payment items found. Initializing defaults...")
+                    PaymentService.create_default_payment_items(session)
+                    print("Default payment items created.")
+                else:
+                    print(f"Found {count} payment items in database.")
+                return True
         except Exception as e:
+            print(f"Error checking/creating payment items: {e}")
+            return False
+
+    def _create_new_payment(
+        self,
+        session,
+        patron: Patron,
+        payment_item: PaymentItem,
+        amount_to_pay,
+        payment_data,
+    ):
+        """Create a new payment record"""
+        try:
+            # Get total amount due
+            total_amount = PaymentService.get_payment_amount(payment_item, patron)
+            if total_amount is None:
+                return {
+                    "success": False,
+                    "message": f"No pricing configured for {payment_item.display_name} and patron category {patron.category.value}",
+                }
+            print(f"DEBUG: Total amount to be paid: {total_amount}")
+
+            # Validate amount doesn't exceed total
+            if amount_to_pay > total_amount:
+                return {
+                    "success": False,
+                    "message": f"Payment amount (KSh {amount_to_pay:.2f}) cannot exceed total due (KSh {total_amount:.2f})",
+                }
+
+            # Calculate membership dates if applicable
+            membership_start, membership_expiry = None, None
+            if payment_item.is_membership:
+                membership_start, membership_expiry = (
+                    PaymentService.calculate_membership_dates(payment_item)
+                )
+
+            print("DEBUG: Processed membership dates")
+
+            # Create payment record
+            payment = Payment(
+                user_id=patron.user_id,
+                payment_item_id=payment_item.id,
+                amount_paid=amount_to_pay,
+                total_amount_due=total_amount,
+                payment_date=datetime.strptime(
+                    payment_data["payment_date"], "%Y-%m-%d"
+                ).date(),
+                membership_start_date=membership_start,
+                membership_expiry_date=membership_expiry,
+                notes=payment_data.get("notes"),
+            )
+
+            # After creating the Payment object:
+            payment.payment_item = payment_item
+            payment.update_status()
+
+            print("DEBUG: creating new payment")
+
+            # Update status based on amount paid
+            payment.update_status()
+
+            session.add(payment)
+            session.flush()  # Assigns payment_id
+
+            # Create partial payment record
+            partial_payment = PartialPayment(
+                payment_id=payment.payment_id,
+                amount=amount_to_pay,
+                payment_date=payment.payment_date,
+                payment_method=payment_data.get("payment_method", "cash"),
+                reference_number=payment_data.get("reference_number"),
+                notes=payment_data.get("partial_payment_notes"),
+            )
+            print("DEBUG: creating new partial payment")
+            session.add(partial_payment)
+
+            # Handle membership activation if fully paid
+            if payment.is_fully_paid() and payment_item.is_membership:
+                PaymentService.activate_membership(session, patron, payment)
+
+            session.commit()
+
+            # Prepare response message
+            if payment.is_fully_paid():
+                message = f"Payment of KSh {amount_to_pay:.2f} completed for {payment_item.display_name}"
+                if payment_item.is_membership:
+                    message += f". Membership activated until {membership_expiry}"
+            else:
+                remaining = payment.get_remaining_amount()
+                message = f"Partial payment of KSh {amount_to_pay:.2f} recorded. Remaining: KSh {remaining:.2f}"
+
             return {
-                "success": False,
-                "message": f"Failed to create installments: {str(e)}",
+                "success": True,
+                "message": message,
+                "payment_id": payment.payment_id,
+                "status": payment.status.value,
+                "amount_paid": payment.amount_paid,
+                "total_due": payment.total_amount_due,
+                "remaining": payment.get_remaining_amount(),
             }
 
-    def _handle_post_payment_actions(self, session, payment, patron, payment_item):
-        """Handle actions after successful payment creation"""
-        # Activate membership for membership payments
-        if (
-            payment_item.name == "membership"
-            and payment.status == PaymentStatus.COMPLETED
-        ):
-            patron.membership_status = "active"
+        except Exception as e:
+            session.rollback()
+            return {"success": False, "message": f"Error creating payment: {str(e)}"}
+
+    def _add_partial_payment(
+        self, session, existing_payment, amount_to_pay, payment_data
+    ):
+        """Add a partial payment to an existing incomplete payment"""
+        try:
+            remaining_amount = existing_payment.get_remaining_amount()
+
+            # Validate amount doesn't exceed remaining
+            if amount_to_pay > remaining_amount:
+                return {
+                    "success": False,
+                    "message": f"Payment amount (KSh {amount_to_pay:.2f}) cannot exceed remaining balance (KSh {remaining_amount:.2f})",
+                }
+
+            # Update payment amounts
+            existing_payment.amount_paid += amount_to_pay
+            existing_payment.updated_at = datetime.utcnow()
+
+            # Ensure payment_item relationship is loaded for update_status()
+            if (
+                not hasattr(existing_payment, "payment_item")
+                or existing_payment.payment_item is None
+            ):
+                existing_payment.payment_item = (
+                    session.query(PaymentItem)
+                    .filter(PaymentItem.id == existing_payment.payment_item_id)
+                    .first()
+                )
+
+            # Update status - now payment_item is available
+            existing_payment.update_status()
+
+            # Create partial payment record
+            partial_payment = PartialPayment(
+                payment_id=existing_payment.payment_id,
+                amount=amount_to_pay,
+                payment_date=datetime.strptime(
+                    payment_data["payment_date"], "%Y-%m-%d"
+                ).date(),
+                payment_method=payment_data.get("payment_method", "cash"),
+                reference_number=payment_data.get("reference_number"),
+                notes=payment_data.get("partial_payment_notes"),
+            )
+            session.add(partial_payment)
+
+            # Handle membership activation if now fully paid
+            if (
+                existing_payment.is_fully_paid()
+                and existing_payment.payment_item.is_membership
+            ):
+                patron = existing_payment.patron
+                PaymentService.activate_membership(session, patron, existing_payment)
+
+            session.commit()
+
+            # Prepare response message
+            new_remaining = existing_payment.get_remaining_amount()
+            if existing_payment.is_fully_paid():
+                message = f"Final payment of KSh {amount_to_pay:.2f} completed for {existing_payment.payment_item.display_name}"
+                if existing_payment.payment_item.is_membership:
+                    message += f". Membership activated until {existing_payment.membership_expiry_date}"
+            else:
+                message = f"Partial payment of KSh {amount_to_pay:.2f} added. Remaining: KSh {new_remaining:.2f}"
+
+            return {
+                "success": True,
+                "message": message,
+                "payment_id": existing_payment.payment_id,
+                "status": existing_payment.status.value,
+                "amount_paid": existing_payment.amount_paid,
+                "total_due": existing_payment.total_amount_due,
+                "remaining": new_remaining,
+            }
+
+        except Exception as e:
+            session.rollback()
+            return {
+                "success": False,
+                "message": f"Error adding partial payment: {str(e)}",
+            }
 
     # ---------- UPDATE ----------
 
@@ -276,13 +481,6 @@ class PaymentController:
                         update_data["payment_date"], "%Y-%m-%d"
                     ).date()
 
-                # Validate amount if being updated
-                if "amount" in update_data and update_data["amount"] <= 0:
-                    return {
-                        "success": False,
-                        "message": "Payment amount must be greater than 0",
-                    }
-
                 # Update payment attributes
                 for key, value in update_data.items():
                     if hasattr(payment, key):
@@ -301,61 +499,31 @@ class PaymentController:
         except Exception as e:
             return {"success": False, "message": f"Error updating payment: {str(e)}"}
 
-    def mark_installment_paid(self, installment_id: int) -> Dict:
-        """Mark an installment as paid and update payment status"""
+    def expire_memberships(self):
+        """Expire all memberships that have passed their expiry date"""
         try:
             with self.db_manager.get_session() as session:
-                installment = (
-                    session.query(Installment)
-                    .filter(Installment.installment_id == installment_id)
-                    .first()
-                )
-
-                if not installment:
-                    return {"success": False, "message": "Installment not found"}
-
-                if installment.is_paid:
-                    return {"success": False, "message": "Installment already paid"}
-
-                # Mark installment as paid
-                installment.is_paid = True
-                installment.paid_date = date.today()
-
-                # Update parent payment status
-                payment = (
-                    session.query(Payment)
-                    .filter(Payment.payment_id == installment.payment_id)
-                    .first()
-                )
-                payment.update_status()
-
-                # Handle post-payment actions if payment is now complete
-                if payment.status == PaymentStatus.COMPLETED:
-                    self._handle_post_payment_actions(
-                        session, payment, payment.patron, payment.payment_item
-                    )
-
-                session.commit()
+                expired_count = PaymentService.expire_old_memberships(session)
                 return {
                     "success": True,
-                    "message": "Installment marked as paid",
-                    "payment_status": payment.status.value,
+                    "message": f"Expired {expired_count} memberships",
+                    "expired_count": expired_count,
                 }
-
         except Exception as e:
             return {
                 "success": False,
-                "message": f"Error updating installment: {str(e)}",
+                "message": f"Error expiring memberships: {str(e)}",
             }
 
     # ---------- DELETE ----------
 
     def delete_payment(self, payment_id):
-        """Delete payment record"""
+        """Delete payment record (only if no partial payments made)"""
         try:
             with self.db_manager.get_session() as session:
                 payment = (
                     session.query(Payment)
+                    .options(joinedload(Payment.partial_payments))
                     .filter(Payment.payment_id == payment_id)
                     .first()
                 )
@@ -363,14 +531,11 @@ class PaymentController:
                 if not payment:
                     return {"success": False, "message": "Payment not found"}
 
-                # Check if any installments are already paid
-                paid_installments = [
-                    inst for inst in payment.installments if inst.is_paid
-                ]
-                if paid_installments:
+                # Don't allow deletion if any amount has been paid
+                if payment.amount_paid > 0:
                     return {
                         "success": False,
-                        "message": f"Cannot delete payment with {len(paid_installments)} paid installments",
+                        "message": f"Cannot delete payment with KSh {payment.amount_paid:.2f} already paid",
                     }
 
                 session.delete(payment)
@@ -390,13 +555,15 @@ class PaymentController:
                 if not patron:
                     return {"success": False, "message": "Patron not found"}
 
+                # Expire membership if needed
+                patron.expire_membership_if_needed()
+
                 payments = self.get_by_patron(user_id)
-                pending_installments = (
-                    session.query(Installment)
-                    .join(Payment)
-                    .filter(Payment.user_id == user_id, Installment.is_paid.is_(False))
-                    .all()
-                )
+                incomplete_payments = [
+                    p
+                    for p in payments
+                    if p.status in [PaymentStatus.PENDING, PaymentStatus.PARTIAL]
+                ]
 
                 # Calculate totals by payment item
                 payment_totals = {}
@@ -407,13 +574,33 @@ class PaymentController:
                             "display_name": payment.payment_item.display_name,
                             "total_paid": 0.0,
                             "payment_count": 0,
+                            "incomplete_count": 0,
+                            "incomplete_amount": 0.0,
                         }
 
-                    payment_totals[item_name]["total_paid"] += payment.amount
+                    payment_totals[item_name]["total_paid"] += payment.amount_paid
                     payment_totals[item_name]["payment_count"] += 1
 
-                total_paid = sum(p.amount for p in payments)
-                total_outstanding = sum(i.amount for i in pending_installments)
+                    if not payment.is_fully_paid():
+                        payment_totals[item_name]["incomplete_count"] += 1
+                        payment_totals[item_name][
+                            "incomplete_amount"
+                        ] += payment.get_remaining_amount()
+
+                total_paid = sum(p.amount_paid for p in payments)
+                total_outstanding = sum(
+                    p.get_remaining_amount() for p in incomplete_payments
+                )
+
+                # Membership info
+                membership_info = {
+                    "status": patron.membership_status.value,
+                    "type": patron.membership_type,
+                    "start_date": patron.membership_start_date,
+                    "expiry_date": patron.membership_expiry_date,
+                    "days_remaining": patron.get_membership_days_remaining(),
+                    "is_active": patron.is_membership_active(),
+                }
 
                 return {
                     "success": True,
@@ -421,9 +608,10 @@ class PaymentController:
                     "total_paid": total_paid,
                     "total_outstanding": total_outstanding,
                     "payment_count": len(payments),
-                    "pending_installments_count": len(pending_installments),
+                    "incomplete_payments_count": len(incomplete_payments),
                     "payment_breakdown": payment_totals,
-                    "pending_installments": pending_installments,
+                    "incomplete_payments": incomplete_payments,
+                    "membership": membership_info,
                 }
 
         except Exception as e:
@@ -437,6 +625,9 @@ class PaymentController:
                 if not patron:
                     return {"success": False, "message": "Patron not found"}
 
+                # Expire membership if needed
+                patron.expire_membership_if_needed()
+
                 payment_items = (
                     session.query(PaymentItem)
                     .filter(PaymentItem.is_active.is_(True))
@@ -447,16 +638,42 @@ class PaymentController:
                 for item in payment_items:
                     amount = item.get_amount_for_patron(patron)
                     if amount is not None:
+                        # Check for existing incomplete payment
+                        existing_payment = (
+                            PaymentService.get_existing_incomplete_payment(
+                                session, user_id, item.name
+                            )
+                        )
+
+                        if existing_payment:
+                            remaining_amount = existing_payment.get_remaining_amount()
+                            display_text = f"{item.display_name} - KSh {remaining_amount:.2f} remaining"
+                            amount_to_show = remaining_amount
+                            has_incomplete = True
+                        else:
+                            display_text = f"{item.display_name} - KSh {amount:.2f}"
+                            amount_to_show = amount
+                            has_incomplete = False
+
+                        # For memberships, check if already active
+                        if item.is_membership and patron.is_membership_active():
+                            if patron.membership_type == item.name:
+                                continue  # Skip if same membership type is active
+
                         available_items.append(
                             {
                                 "id": item.id,
                                 "name": item.name,
                                 "display_name": item.display_name,
                                 "description": item.description,
-                                "amount": amount,
+                                "amount": amount_to_show,
+                                "total_amount": amount,
                                 "supports_installments": item.supports_installments,
                                 "max_installments": item.max_installments,
-                                "formatted_display": f"{item.display_name} - KSh {amount:.2f}",
+                                "formatted_display": display_text,
+                                "has_incomplete_payment": has_incomplete,
+                                "is_membership": item.is_membership,
+                                "membership_duration_months": item.membership_duration_months,
                             }
                         )
 
@@ -471,78 +688,6 @@ class PaymentController:
                 "success": False,
                 "message": f"Error getting available items: {str(e)}",
             }
-
-    def validate_patron_can_pay(self, user_id: int, payment_item_name: str) -> Dict:
-        """Validate if patron can make a specific payment"""
-        try:
-            with self.db_manager.get_session() as session:
-                patron = session.query(Patron).filter(Patron.user_id == user_id).first()
-                if not patron:
-                    return {"success": False, "message": "Patron not found"}
-
-                payment_item = (
-                    session.query(PaymentItem)
-                    .filter(
-                        PaymentItem.name == payment_item_name,
-                        PaymentItem.is_active.is_(True),
-                    )
-                    .first()
-                )
-                if not payment_item:
-                    return {
-                        "success": False,
-                        "message": f"Payment item '{payment_item_name}' not found or inactive",
-                    }
-
-                # Check for existing active membership (prevent duplicate memberships)
-                if payment_item.name == "membership":
-                    existing_membership = (
-                        session.query(Payment)
-                        .join(PaymentItem)
-                        .filter(
-                            Payment.user_id == user_id,
-                            PaymentItem.name == "membership",
-                            Payment.status.in_(
-                                [PaymentStatus.COMPLETED, PaymentStatus.PARTIAL]
-                            ),
-                        )
-                        .first()
-                    )
-
-                    if existing_membership and patron.membership_status == "active":
-                        return {
-                            "success": False,
-                            "message": "Patron already has an active membership",
-                        }
-
-                # Check if patron has pending installments for the same item
-                pending_installments = (
-                    session.query(Installment)
-                    .join(Payment)
-                    .join(PaymentItem)
-                    .filter(
-                        Payment.user_id == user_id,
-                        PaymentItem.name == payment_item_name,
-                        Installment.is_paid.is_(False),
-                    )
-                    .count()
-                )
-
-                if pending_installments > 0:
-                    return {
-                        "success": False,
-                        "message": f"Patron has {pending_installments} pending installments for {payment_item.display_name}",
-                    }
-
-                return {
-                    "success": True,
-                    "patron": patron,
-                    "payment_item": payment_item,
-                    "amount": payment_item.get_amount_for_patron(patron),
-                }
-
-        except Exception as e:
-            return {"success": False, "message": f"Validation error: {str(e)}"}
 
     def get_payment_analytics(self, start_date=None, end_date=None):
         """Get payment analytics and insights"""
@@ -573,6 +718,7 @@ class PaymentController:
                 # Analytics by payment item
                 analytics = {}
                 total_revenue = 0.0
+                total_outstanding = 0.0
 
                 for payment in payments:
                     item_name = payment.payment_item.name
@@ -580,36 +726,42 @@ class PaymentController:
                         analytics[item_name] = {
                             "display_name": payment.payment_item.display_name,
                             "count": 0,
-                            "total_amount": 0.0,
-                            "avg_amount": 0.0,
+                            "total_collected": 0.0,
+                            "total_outstanding": 0.0,
+                            "avg_payment": 0.0,
                             "completed_count": 0,
-                            "pending_count": 0,
                             "partial_count": 0,
+                            "pending_count": 0,
                         }
 
                     analytics[item_name]["count"] += 1
-                    analytics[item_name]["total_amount"] += payment.amount
+                    analytics[item_name]["total_collected"] += payment.amount_paid
+                    analytics[item_name][
+                        "total_outstanding"
+                    ] += payment.get_remaining_amount()
 
                     if payment.status == PaymentStatus.COMPLETED:
                         analytics[item_name]["completed_count"] += 1
-                    elif payment.status == PaymentStatus.PENDING:
-                        analytics[item_name]["pending_count"] += 1
                     elif payment.status == PaymentStatus.PARTIAL:
                         analytics[item_name]["partial_count"] += 1
+                    elif payment.status == PaymentStatus.PENDING:
+                        analytics[item_name]["pending_count"] += 1
 
-                    total_revenue += payment.amount
+                    total_revenue += payment.amount_paid
+                    total_outstanding += payment.get_remaining_amount()
 
                 # Calculate averages
                 for item_data in analytics.values():
                     if item_data["count"] > 0:
-                        item_data["avg_amount"] = (
-                            item_data["total_amount"] / item_data["count"]
+                        item_data["avg_payment"] = (
+                            item_data["total_collected"] / item_data["count"]
                         )
 
                 return {
                     "success": True,
                     "period": {"start": start_date, "end": end_date},
                     "total_revenue": total_revenue,
+                    "total_outstanding": total_outstanding,
                     "total_payments": len(payments),
                     "analytics_by_item": analytics,
                 }
@@ -639,138 +791,6 @@ class PaymentItemController:
                 .all()
             )
 
-    def get_item_by_name(self, name):
-        """Get payment item by name"""
-        with self.db_manager.get_session() as session:
-            return (
-                session.query(PaymentItem)
-                .options(joinedload(PaymentItem.category_prices))
-                .filter(PaymentItem.name == name)
-                .first()
-            )
-
-    def create_payment_item(self, item_data):
-        """Create a new payment item"""
-        try:
-            with self.db_manager.get_session() as session:
-                # Validate required fields
-                required_fields = ["name", "display_name"]
-                for field in required_fields:
-                    if field not in item_data or not item_data[field]:
-                        return {
-                            "success": False,
-                            "message": f"Missing required field: {field}",
-                        }
-
-                # Check for duplicate name
-                existing = (
-                    session.query(PaymentItem).filter_by(name=item_data["name"]).first()
-                )
-                if existing:
-                    return {
-                        "success": False,
-                        "message": f"Payment item with name '{item_data['name']}' already exists",
-                    }
-
-                # Validate installment settings
-                if item_data.get("supports_installments", False):
-                    max_installments = item_data.get("max_installments", 1)
-                    if max_installments < 1:
-                        return {
-                            "success": False,
-                            "message": "Max installments must be at least 1",
-                        }
-
-                # Create payment item
-                payment_item_data = {
-                    k: v for k, v in item_data.items() if k != "category_prices"
-                }
-                payment_item = PaymentItem(**payment_item_data)
-                session.add(payment_item)
-                session.flush()  # Get ID
-
-                # Create category prices if specified
-                if item_data.get("category_prices"):
-                    for price_data in item_data["category_prices"]:
-                        if price_data["amount"] <= 0:
-                            return {
-                                "success": False,
-                                "message": "Category price amounts must be positive",
-                            }
-
-                        price = PaymentItemPrice(
-                            payment_item_id=payment_item.id,
-                            category=Category(price_data["category"]),
-                            amount=price_data["amount"],
-                        )
-                        session.add(price)
-
-                session.commit()
-                session.refresh(payment_item)
-
-                return {
-                    "success": True,
-                    "payment_item": payment_item,
-                    "message": f"Payment item '{payment_item.display_name}' created successfully",
-                }
-
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"Error creating payment item: {str(e)}",
-            }
-
-    def update_payment_item(self, item_id, update_data):
-        """Update a payment item"""
-        try:
-            with self.db_manager.get_session() as session:
-                item = (
-                    session.query(PaymentItem).filter(PaymentItem.id == item_id).first()
-                )
-                if not item:
-                    return {"success": False, "message": "Payment item not found"}
-
-                # Update basic fields
-                for key, value in update_data.items():
-                    if key != "category_prices" and hasattr(item, key):
-                        setattr(item, key, value)
-
-                # Update category prices if provided
-                if "category_prices" in update_data:
-                    # Remove existing prices
-                    session.query(PaymentItemPrice).filter_by(
-                        payment_item_id=item.id
-                    ).delete()
-
-                    # Add new prices
-                    for price_data in update_data["category_prices"]:
-                        price = PaymentItemPrice(
-                            payment_item_id=item.id,
-                            category=Category(price_data["category"]),
-                            amount=price_data["amount"],
-                        )
-                        session.add(price)
-
-                item.updated_at = datetime.utcnow()
-                session.commit()
-                session.refresh(item)
-
-                return {
-                    "success": True,
-                    "payment_item": item,
-                    "message": f"Payment item '{item.display_name}' updated successfully",
-                }
-
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"Error updating payment item: {str(e)}",
-            }
-
-    def deactivate_payment_item(self, item_id):
-        """Deactivate a payment item (soft delete)"""
-        return self.update_payment_item(item_id, {"is_active": False})
-
     def get_payment_items_for_patron(self, patron):
         """Get all payment items with their amounts for a specific patron"""
         with self.db_manager.get_session() as session:
@@ -781,14 +801,32 @@ class PaymentItemController:
             result = []
             for item in items:
                 amount = item.get_amount_for_patron(patron)
-                if amount is not None:  # Only include items with valid pricing
+                if amount is not None:
+                    # Check for existing incomplete payment
+                    existing_payment = PaymentService.get_existing_incomplete_payment(
+                        session, patron.user_id, item.name
+                    )
+
+                    if existing_payment:
+                        remaining_amount = existing_payment.get_remaining_amount()
+                        display_text = f"{item.display_name} - KSh {remaining_amount:.2f} remaining"
+                        amount_to_show = remaining_amount
+                        has_incomplete = True
+                    else:
+                        display_text = f"{item.display_name} - KSh {amount:.2f}"
+                        amount_to_show = amount
+                        has_incomplete = False
+
                     result.append(
                         {
                             "item": item,
-                            "amount": amount,
-                            "formatted_display": f"{item.display_name} - KSh {amount:.2f}",
+                            "amount": amount_to_show,
+                            "total_amount": amount,
+                            "formatted_display": display_text,
                             "supports_installments": item.supports_installments,
                             "max_installments": item.max_installments,
+                            "has_incomplete_payment": has_incomplete,
+                            "existing_payment": existing_payment,
                         }
                     )
 
@@ -805,51 +843,91 @@ class PaymentItemController:
                 "success": False,
                 "message": f"Error initializing payment items: {str(e)}",
             }
+            session.rollback()
+            return {"success": False, "message": f"Unexpected error: {str(e)}"}
 
+    def _create_new_payment(
+        self, session, patron, payment_item, amount_to_pay, payment_data
+    ):
+        """Create a new payment record"""
+        try:
+            # Get total amount due
+            total_amount = PaymentService.get_payment_amount(payment_item, patron)
+            if total_amount is None:
+                return {
+                    "success": False,
+                    "message": f"No pricing configured for {payment_item.display_name} and patron category {patron.category.value}",
+                }
 
-# Database migration helper
-class PaymentSystemMigration:
-    """Helper class for migrating from old payment system to new flexible system"""
+            # Validate amount doesn't exceed total
+            if amount_to_pay > total_amount:
+                return {
+                    "success": False,
+                    "message": f"Payment amount (KSh {amount_to_pay:.2f}) cannot exceed total due (KSh {total_amount:.2f})",
+                }
 
-    @staticmethod
-    def migrate_existing_payments(db_manager):
-        """Migrate existing payments to use PaymentItem references"""
-        with db_manager.get_session() as session:
-            try:
-                # First, ensure default payment items exist
-                PaymentService.create_default_payment_items(session)
-
-                # Get payment items for mapping
-                access_item = (
-                    session.query(PaymentItem).filter_by(name="access").first()
+            # Calculate membership dates if applicable
+            membership_start, membership_expiry = None, None
+            if payment_item.is_membership:
+                membership_start, membership_expiry = (
+                    PaymentService.calculate_membership_dates(payment_item)
                 )
-                study_item = (
-                    session.query(PaymentItem).filter_by(name="study_room").first()
-                )
-                membership_item = (
-                    session.query(PaymentItem).filter_by(name="membership").first()
-                )
 
-                if not all([access_item, study_item, membership_item]):
-                    raise Exception("Default payment items not found")
+            # Create payment record
+            payment = Payment(
+                user_id=patron.user_id,
+                payment_item_id=payment_item.id,
+                amount_paid=amount_to_pay,
+                total_amount_due=total_amount,
+                payment_date=datetime.strptime(
+                    payment_data["payment_date"], "%Y-%m-%d"
+                ).date(),
+                membership_start_date=membership_start,
+                membership_expiry_date=membership_expiry,
+                notes=payment_data.get("notes"),
+            )
 
-                # Map old payment types to new items (if you have old data)
-                # This would depend on your current Payment table structure
-                # Uncomment and modify if you have existing data to migrate:
+            # Update status based on amount paid
+            payment.update_status()
 
-                # payments = session.query(Payment).filter(Payment.payment_item_id.is_(None)).all()
-                # for payment in payments:
-                #     if hasattr(payment, 'payment_type'):  # Old enum field
-                #         if payment.payment_type == 'ACCESS':
-                #             payment.payment_item_id = access_item.id
-                #         elif payment.payment_type == 'STUDY_ROOM':
-                #             payment.payment_item_id = study_item.id
-                #         elif payment.payment_type == 'MEMBERSHIP':
-                #             payment.payment_item_id = membership_item.id
+            session.add(payment)
+            session.flush()  # Get payment ID
 
-                session.commit()
-                return {"success": True, "message": "Migration completed successfully"}
+            # Create partial payment record
+            partial_payment = PartialPayment(
+                payment_id=payment.payment_id,
+                amount=amount_to_pay,
+                payment_date=payment.payment_date,
+                payment_method=payment_data.get("payment_method", "cash"),
+                reference_number=payment_data.get("reference_number"),
+                notes=payment_data.get("partial_payment_notes"),
+            )
+            session.add(partial_payment)
 
-            except Exception as e:
-                session.rollback()
-                return {"success": False, "message": f"Migration failed: {str(e)}"}
+            # Handle membership activation if fully paid
+            if payment.is_fully_paid() and payment_item.is_membership:
+                PaymentService.activate_membership(session, patron, payment)
+
+            session.commit()
+
+            # Prepare response message
+            if payment.is_fully_paid():
+                message = f"Payment of KSh {amount_to_pay:.2f} completed for {payment_item.display_name}"
+                if payment_item.is_membership:
+                    message += f". Membership activated until {membership_expiry}"
+            else:
+                remaining = payment.get_remaining_amount()
+                message = f"Partial payment of KSh {amount_to_pay:.2f} recorded. Remaining: KSh {remaining:.2f}"
+
+            return {
+                "success": True,
+                "message": message,
+                "payment_id": payment.payment_id,
+                "status": payment.status.value,
+                "amount_paid": payment.amount_paid,
+                "total_due": payment.total_amount_due,
+                "remaining": payment.get_remaining_amount(),
+            }
+
+        except Exception as e:
+            return {"success": False, "message": f"Error creating payment: {str(e)}"}

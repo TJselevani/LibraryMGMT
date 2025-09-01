@@ -1,4 +1,4 @@
-# Enhanced payment form widget
+# Simplified payment form widget - No complex installments
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -10,17 +10,16 @@ from PyQt5.QtWidgets import (
     QListWidget,
     QMessageBox,
     QFrame,
-    QScrollArea,
     QListWidgetItem,
     QGridLayout,
     QTextEdit,
-    QCheckBox,
-    QSpinBox,
     QDoubleSpinBox,
+    QGroupBox,
 )
 from PyQt5.QtCore import QDate, Qt, pyqtSignal
 from ui.widgets.buttons.material_button import MaterialButton
 from utils.constants import COLORS
+from db.models import PaymentItem
 
 
 class PatronSearchWidget(QFrame):
@@ -164,119 +163,8 @@ class PatronSearchWidget(QFrame):
         self.patron_selected.emit(self.selected_patron)
 
 
-class InstallmentWidget(QFrame):
-    """Enhanced widget for installment entry with validation"""
-
-    def __init__(self, installment_number, max_amount=None):
-        super().__init__()
-        self.installment_number = installment_number
-        self.max_amount = max_amount
-        self.setup_ui()
-
-    def setup_ui(self):
-        self.setStyleSheet(
-            f"""
-            QFrame {{
-                background-color: {COLORS.get('surface_variant', '#F8F8F8')};
-                border: 1px solid {COLORS.get('outline_variant', '#E0E0E0')};
-                border-radius: 6px;
-                padding: 8px;
-                margin: 2px 0;
-            }}
-        """
-        )
-
-        layout = QHBoxLayout(self)
-        layout.setSpacing(8)
-
-        # Installment label
-        label = QLabel(f"#{self.installment_number}")
-        label.setStyleSheet(
-            f"""
-            QLabel {{
-                font-weight: 600;
-                color: {COLORS.get('on_surface', '#000000')};
-                min-width: 30px;
-                font-size: 12px;
-            }}
-        """
-        )
-        layout.addWidget(label)
-
-        # Amount input with validation
-        self.amount_input = QDoubleSpinBox()
-        self.amount_input.setDecimals(2)
-        self.amount_input.setMinimum(0.01)
-        if self.max_amount:
-            self.amount_input.setMaximum(self.max_amount)
-        else:
-            self.amount_input.setMaximum(999999.99)
-        self.amount_input.setStyleSheet(
-            f"""
-            QDoubleSpinBox {{
-                border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 4px;
-                padding: 6px 8px;
-                background-color: white;
-                font-size: 12px;
-            }}
-            QDoubleSpinBox:focus {{
-                border-color: {COLORS.get('primary', '#1976D2')};
-            }}
-        """
-        )
-        layout.addWidget(self.amount_input)
-
-        # Date input
-        self.date_input = QDateEdit()
-        self.date_input.setCalendarPopup(True)
-        self.date_input.setDate(QDate.currentDate())
-        self.date_input.setMinimumDate(QDate.currentDate())  # Prevent past dates
-        self.date_input.setStyleSheet(
-            f"""
-            QDateEdit {{
-                border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 4px;
-                padding: 6px 8px;
-                background-color: white;
-                font-size: 12px;
-            }}
-            QDateEdit:focus {{
-                border-color: {COLORS.get('primary', '#1976D2')};
-            }}
-        """
-        )
-        layout.addWidget(self.date_input)
-
-    def get_data(self):
-        """Get installment data with validation"""
-        try:
-            amount = self.amount_input.value()
-            if amount <= 0:
-                return None
-
-            return {
-                "installment_number": self.installment_number,
-                "amount": amount,
-                "date": self.date_input.date().toString("yyyy-MM-dd"),
-            }
-        except Exception:
-            return None
-
-    def set_amount(self, amount):
-        """Set the amount value"""
-        self.amount_input.setValue(amount)
-
-    def set_due_date(self, date_obj):
-        """Set the due date"""
-        if isinstance(date_obj, QDate):
-            self.date_input.setDate(date_obj)
-        else:
-            self.date_input.setDate(QDate.fromString(date_obj, "yyyy-MM-dd"))
-
-
 class AddPaymentForm(QWidget):
-    """Enhanced payment form that works with flexible payment items"""
+    """Simplified payment form for partial payments"""
 
     def __init__(
         self,
@@ -294,8 +182,7 @@ class AddPaymentForm(QWidget):
         self.on_success = on_success
         self.selected_patron = None
         self.available_payment_items = []
-        self.selected_payment_item = None
-        self.installment_widgets = []
+        self.selected_payment_item: PaymentItem = None
         self.setup_ui()
         self.load_data()
 
@@ -339,7 +226,7 @@ class AddPaymentForm(QWidget):
         """
         )
 
-        subtitle = QLabel("Create a new payment record for library services")
+        subtitle = QLabel("Make full or partial payments for library services")
         subtitle.setStyleSheet(
             f"""
             QLabel {{
@@ -368,7 +255,7 @@ class AddPaymentForm(QWidget):
         payment_item_frame = self.create_payment_item_section()
         content_layout.addWidget(payment_item_frame)
 
-        # Column 3: Payment Details & Installments
+        # Column 3: Payment Details
         details_frame = self.create_payment_details_section()
         content_layout.addWidget(details_frame)
 
@@ -410,6 +297,24 @@ class AddPaymentForm(QWidget):
         self.patron_search.patron_selected.connect(self.on_patron_selected)
         patron_layout.addWidget(self.patron_search)
 
+        # Membership status display
+        self.membership_status = QLabel("")
+        self.membership_status.setWordWrap(True)
+        self.membership_status.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 11px;
+                color: {COLORS.get('on_surface_variant', '#666666')};
+                background-color: {COLORS.get('surface_variant', '#F5F5F5')};
+                border-radius: 4px;
+                padding: 6px;
+                margin-top: 8px;
+            }}
+        """
+        )
+        patron_layout.addWidget(self.membership_status)
+
+        patron_layout.addStretch()
         return patron_frame
 
     def create_payment_item_section(self):
@@ -478,36 +383,29 @@ class AddPaymentForm(QWidget):
         )
         item_layout.addWidget(self.service_description)
 
-        # Installment options
-        self.installment_checkbox = QCheckBox("Pay in installments")
-        self.installment_checkbox.setStyleSheet(
+        # Payment status for existing incomplete payments
+        self.payment_status_label = QLabel("")
+        self.payment_status_label.setWordWrap(True)
+        self.payment_status_label.setStyleSheet(
             f"""
-            QCheckBox {{
-                font-size: 13px;
-                font-weight: 500;
-                spacing: 8px;
-            }}
-            QCheckBox::indicator {{
-                width: 16px;
-                height: 16px;
-                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 3px;
-                background-color: white;
-            }}
-            QCheckBox::indicator:checked {{
-                background-color: {COLORS.get('primary', '#1976D2')};
-                border-color: {COLORS.get('primary', '#1976D2')};
+            QLabel {{
+                font-size: 11px;
+                color: {COLORS.get('error', '#D32F2F')};
+                background-color: {COLORS.get('error_container', '#FFEBEE')};
+                border-radius: 4px;
+                padding: 6px;
+                margin-top: 4px;
             }}
         """
         )
-        self.installment_checkbox.stateChanged.connect(self.toggle_installments)
-        item_layout.addWidget(self.installment_checkbox)
+        self.payment_status_label.hide()
+        item_layout.addWidget(self.payment_status_label)
 
         item_layout.addStretch()
         return item_frame
 
     def create_payment_details_section(self):
-        """Create payment details and installments section"""
+        """Create payment details section"""
         details_frame = QFrame()
         details_frame.setStyleSheet(
             f"""
@@ -538,8 +436,87 @@ class AddPaymentForm(QWidget):
         details_grid = QGridLayout()
         details_grid.setSpacing(12)
 
-        # Amount display
-        amount_label = QLabel("Total Amount (KSh)")
+        # Total amount display
+        total_label = QLabel("Total Required (KSh)")
+        total_label.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 13px;
+                font-weight: 500;
+                color: {COLORS.get('on_surface', '#000000')};
+            }}
+        """
+        )
+        details_grid.addWidget(total_label, 0, 0)
+
+        self.total_amount_display = QLabel("0.00")
+        self.total_amount_display.setStyleSheet(
+            f"""
+            QLabel {{
+                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 14px;
+                font-weight: 600;
+                background-color: {COLORS.get('surface_variant', '#F5F5F5')};
+                color: {COLORS.get('on_surface', '#000000')};
+            }}
+        """
+        )
+        details_grid.addWidget(self.total_amount_display, 1, 0)
+
+        # Already paid display (for existing payments)
+        paid_label = QLabel("Already Paid (KSh)")
+        paid_label.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 13px;
+                font-weight: 500;
+                color: {COLORS.get('on_surface', '#000000')};
+            }}
+        """
+        )
+        details_grid.addWidget(paid_label, 0, 1)
+
+        self.paid_amount_display = QLabel("0.00")
+        self.paid_amount_display.setStyleSheet(
+            f"""
+            QLabel {{
+                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 14px;
+                font-weight: 600;
+                background-color: {COLORS.get('success_container', '#E8F5E8')};
+                color: {COLORS.get('success', '#2E7D32')};
+            }}
+        """
+        )
+        details_grid.addWidget(self.paid_amount_display, 1, 1)
+
+        details_layout.addLayout(details_grid)
+
+        # Amount to pay input
+        amount_section = QGroupBox("Payment Amount")
+        amount_section.setStyleSheet(
+            f"""
+            QGroupBox {{
+                font-size: 14px;
+                font-weight: 600;
+                color: {COLORS.get('primary', '#1976D2')};
+                border: 2px solid {COLORS.get('primary', '#1976D2')};
+                border-radius: 8px;
+                padding-top: 12px;
+                margin-top: 8px;
+            }}
+        """
+        )
+        amount_layout = QVBoxLayout(amount_section)
+
+        # Amount input with validation
+        amount_input_layout = QHBoxLayout()
+
+        amount_label = QLabel("Amount (KSh):")
         amount_label.setStyleSheet(
             f"""
             QLabel {{
@@ -549,25 +526,76 @@ class AddPaymentForm(QWidget):
             }}
         """
         )
-        details_grid.addWidget(amount_label, 0, 0)
+        amount_input_layout.addWidget(amount_label)
 
-        self.amount_display = QLabel("0.00")
-        self.amount_display.setStyleSheet(
+        self.amount_input = QDoubleSpinBox()
+        self.amount_input.setDecimals(2)
+        self.amount_input.setMinimum(0.01)
+        self.amount_input.setMaximum(999999.99)
+        self.amount_input.setStyleSheet(
             f"""
-            QLabel {{
+            QDoubleSpinBox {{
                 border: 2px solid {COLORS.get('outline', '#E0E0E0')};
                 border-radius: 6px;
                 padding: 8px 12px;
                 font-size: 14px;
                 font-weight: 600;
-                background-color: {COLORS.get('surface_variant', '#F5F5F5')};
-                color: {COLORS.get('primary', '#1976D2')};
+                background-color: white;
+            }}
+            QDoubleSpinBox:focus {{
+                border-color: {COLORS.get('primary', '#1976D2')};
             }}
         """
         )
-        details_grid.addWidget(self.amount_display, 1, 0)
+        self.amount_input.valueChanged.connect(self.validate_amount)
+        amount_input_layout.addWidget(self.amount_input)
+
+        # Quick amount buttons for full payment
+        self.full_payment_btn = MaterialButton("Pay Remaining", button_type="outlined")
+        self.full_payment_btn.setStyleSheet(
+            f"""
+            QPushButton {{
+                background-color: {COLORS.get('primary_container', '#E3F2FD')};
+                color: {COLORS.get('primary', '#1976D2')};
+                border: 2px solid {COLORS.get('primary', '#1976D2')};
+                border-radius: 6px;
+                padding: 6px 12px;
+                font-size: 12px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{
+                background-color: {COLORS.get('primary', '#1976D2')};
+                color: white;
+            }}
+        """
+        )
+        self.full_payment_btn.clicked.connect(self.set_full_payment)
+        self.full_payment_btn.hide()  # Initially hidden
+        amount_input_layout.addWidget(self.full_payment_btn)
+
+        amount_layout.addLayout(amount_input_layout)
+
+        # Validation message
+        self.amount_validation = QLabel("")
+        self.amount_validation.setWordWrap(True)
+        self.amount_validation.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 11px;
+                color: {COLORS.get('error', '#D32F2F')};
+                margin-top: 4px;
+            }}
+        """
+        )
+        amount_layout.addWidget(self.amount_validation)
+
+        details_layout.addWidget(amount_section)
+
+        # Payment date and method
+        payment_info_layout = QHBoxLayout()
 
         # Payment date
+        date_layout = QVBoxLayout()
         date_label = QLabel("Payment Date")
         date_label.setStyleSheet(
             f"""
@@ -578,7 +606,7 @@ class AddPaymentForm(QWidget):
             }}
         """
         )
-        details_grid.addWidget(date_label, 0, 1)
+        date_layout.addWidget(date_label)
 
         self.payment_date = QDateEdit()
         self.payment_date.setCalendarPopup(True)
@@ -597,9 +625,75 @@ class AddPaymentForm(QWidget):
             }}
         """
         )
-        details_grid.addWidget(self.payment_date, 1, 1)
+        date_layout.addWidget(self.payment_date)
+        payment_info_layout.addLayout(date_layout)
 
-        details_layout.addLayout(details_grid)
+        # Payment method
+        method_layout = QVBoxLayout()
+        method_label = QLabel("Payment Method")
+        method_label.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 13px;
+                font-weight: 500;
+                color: {COLORS.get('on_surface', '#000000')};
+            }}
+        """
+        )
+        method_layout.addWidget(method_label)
+
+        self.payment_method = QComboBox()
+        self.payment_method.addItems(["Cash", "M-Pesa", "Bank Transfer", "Card"])
+        self.payment_method.setStyleSheet(
+            f"""
+            QComboBox {{
+                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
+                background-color: white;
+            }}
+            QComboBox:focus {{
+                border-color: {COLORS.get('primary', '#1976D2')};
+            }}
+        """
+        )
+        method_layout.addWidget(self.payment_method)
+        payment_info_layout.addLayout(method_layout)
+
+        details_layout.addLayout(payment_info_layout)
+
+        # Reference number (optional)
+        ref_label = QLabel("Reference Number (Optional)")
+        ref_label.setStyleSheet(
+            f"""
+            QLabel {{
+                font-size: 13px;
+                font-weight: 500;
+                color: {COLORS.get('on_surface', '#000000')};
+                margin-top: 8px;
+            }}
+        """
+        )
+        details_layout.addWidget(ref_label)
+
+        self.reference_input = QLineEdit()
+        self.reference_input.setPlaceholderText("Transaction ID, receipt number, etc.")
+        self.reference_input.setStyleSheet(
+            f"""
+            QLineEdit {{
+                border: 2px solid {COLORS.get('outline', '#E0E0E0')};
+                border-radius: 6px;
+                padding: 8px 12px;
+                font-size: 13px;
+                background-color: white;
+            }}
+            QLineEdit:focus {{
+                border-color: {COLORS.get('primary', '#1976D2')};
+            }}
+        """
+        )
+        details_layout.addWidget(self.reference_input)
 
         # Notes section
         notes_label = QLabel("Notes (Optional)")
@@ -617,7 +711,7 @@ class AddPaymentForm(QWidget):
 
         self.notes_input = QTextEdit()
         self.notes_input.setMaximumHeight(60)
-        self.notes_input.setPlaceholderText("Add any additional notes...")
+        self.notes_input.setPlaceholderText("Additional notes about this payment...")
         self.notes_input.setStyleSheet(
             f"""
             QTextEdit {{
@@ -633,56 +727,6 @@ class AddPaymentForm(QWidget):
         """
         )
         details_layout.addWidget(self.notes_input)
-
-        # Installments section
-        self.installments_section = QFrame()
-        installments_layout = QVBoxLayout(self.installments_section)
-
-        installments_title = QLabel("Installment Schedule")
-        installments_title.setStyleSheet(
-            f"""
-            QLabel {{
-                font-size: 14px;
-                font-weight: 600;
-                color: {COLORS.get('tertiary', '#7B1FA2')};
-                margin: 8px 0;
-            }}
-        """
-        )
-        installments_layout.addWidget(installments_title)
-
-        # Number of installments spinner
-        installments_controls = QHBoxLayout()
-
-        installments_label = QLabel("Number of installments:")
-        installments_label.setStyleSheet("font-size: 12px; font-weight: 500;")
-        installments_controls.addWidget(installments_label)
-
-        self.installments_count = QSpinBox()
-        self.installments_count.setMinimum(2)
-        self.installments_count.setMaximum(12)  # Will be updated based on payment item
-        self.installments_count.setValue(3)
-        self.installments_count.valueChanged.connect(self.update_installment_widgets)
-        installments_controls.addWidget(self.installments_count)
-        installments_controls.addStretch()
-
-        installments_layout.addLayout(installments_controls)
-
-        # Scrollable installments area
-        installments_scroll = QScrollArea()
-        installments_scroll.setWidgetResizable(True)
-        installments_scroll.setMaximumHeight(200)
-        installments_scroll.setStyleSheet("QScrollArea { border: none; }")
-
-        self.installments_widget = QWidget()
-        self.installments_layout = QVBoxLayout(self.installments_widget)
-        self.installments_layout.setSpacing(4)
-
-        installments_scroll.setWidget(self.installments_widget)
-        installments_layout.addWidget(installments_scroll)
-
-        self.installments_section.hide()  # Initially hidden
-        details_layout.addWidget(self.installments_section)
 
         details_layout.addStretch()
         return details_frame
@@ -709,7 +753,7 @@ class AddPaymentForm(QWidget):
         cancel_btn.clicked.connect(self.on_cancel)
 
         # Save button
-        save_btn = MaterialButton("Save Payment", button_type="elevated")
+        save_btn = MaterialButton("Record Payment", button_type="elevated")
         save_btn.setStyleSheet(
             f"""
             QPushButton {{
@@ -741,9 +785,8 @@ class AddPaymentForm(QWidget):
             all_patrons = self.patrons_controller.get_all()
             self.patron_search.load_patrons(all_patrons)
 
-            # Load payment items for initial display
-            all_payment_items = self.payment_items_controller.get_all_active_items()
-            self.update_payment_item_combo([])  # Empty until patron selected
+            # Initialize payment item combo
+            self.payment_item_combo.addItem("Select a patron first...", None)
 
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Failed to load data: {str(e)}")
@@ -751,6 +794,43 @@ class AddPaymentForm(QWidget):
     def on_patron_selected(self, patron):
         """Handle patron selection and load available payment items"""
         self.selected_patron = patron
+
+        # Update membership status display
+        if patron.is_membership_active():
+            days_remaining = patron.get_membership_days_remaining()
+            self.membership_status.setText(
+                f"Membership: {patron.membership_status.value.title()} "
+                f"({patron.membership_type}) - {days_remaining} days remaining"
+            )
+            self.membership_status.setStyleSheet(
+                f"""
+                QLabel {{
+                    font-size: 11px;
+                    color: {COLORS.get('success', '#2E7D32')};
+                    background-color: {COLORS.get('success_container', '#E8F5E8')};
+                    border-radius: 4px;
+                    padding: 6px;
+                    margin-top: 8px;
+                }}
+            """
+            )
+        else:
+            self.membership_status.setText(
+                f"Membership: {patron.membership_status.value.title()}"
+            )
+            self.membership_status.setStyleSheet(
+                f"""
+                QLabel {{
+                    font-size: 11px;
+                    color: {COLORS.get('warning', '#F57C00')};
+                    background-color: {COLORS.get('warning_container', '#FFF3E0')};
+                    border-radius: 4px;
+                    padding: 6px;
+                    margin-top: 8px;
+                }}
+            """
+            )
+
         try:
             # Get available payment items for this patron
             result = self.payment_items_controller.get_payment_items_for_patron(patron)
@@ -763,17 +843,26 @@ class AddPaymentForm(QWidget):
 
     def update_payment_item_combo(self, payment_items):
         """Update payment item combobox"""
+        # Disconnect signal to prevent recursion
+        try:
+            self.payment_item_combo.currentIndexChanged.disconnect()
+        except Exception as e:
+            print(e)
+            pass
+
         self.payment_item_combo.clear()
         self.payment_item_combo.addItem("Select a service...", None)
 
         for item_data in payment_items:
             display_text = item_data["formatted_display"]
+
+            # Add indicator for installment support
             if item_data["supports_installments"]:
-                display_text += " (Installments available)"
+                display_text += " (Partial payments allowed)"
 
             self.payment_item_combo.addItem(display_text, item_data)
 
-        # Connect signal after adding items
+        # Reconnect signal
         self.payment_item_combo.currentIndexChanged.connect(
             self.on_payment_item_selected
         )
@@ -783,75 +872,102 @@ class AddPaymentForm(QWidget):
         current_data = self.payment_item_combo.currentData()
         if not current_data:
             self.selected_payment_item = None
-            self.amount_display.setText("0.00")
-            self.service_description.setText("Select a service...")
-            self.installment_checkbox.hide()
-            self.installments_section.hide()
+            self.reset_payment_details()
             return
 
         self.selected_payment_item = current_data
         item = current_data["item"]
-        amount = current_data["amount"]
 
-        # Update amount display
-        self.amount_display.setText(f"{amount:.2f}")
+        # Update displays
+        self.total_amount_display.setText(f"{current_data['total_amount']:.2f}")
+
+        # Show existing payment info if applicable
+        if current_data["has_incomplete_payment"]:
+            existing_payment = current_data["existing_payment"]
+            paid_amount = existing_payment.amount_paid
+            remaining = existing_payment.get_remaining_amount()
+
+            self.paid_amount_display.setText(f"{paid_amount:.2f}")
+            self.payment_status_label.setText(
+                f"Existing payment found: KSh {paid_amount:.2f} already paid. "
+                f"Remaining: KSh {remaining:.2f}"
+            )
+            self.payment_status_label.show()
+
+            # Set max amount to remaining amount
+            self.amount_input.setMaximum(remaining)
+            self.full_payment_btn.setText(f"Pay Remaining (KSh {remaining:.2f})")
+            self.full_payment_btn.show()
+
+        else:
+            self.paid_amount_display.setText("0.00")
+            self.payment_status_label.hide()
+            self.amount_input.setMaximum(current_data["total_amount"])
+            self.full_payment_btn.setText("Pay Full Amount")
+
+            # Only show full payment button if installments are supported
+            if item.supports_installments:
+                self.full_payment_btn.show()
+            else:
+                self.full_payment_btn.hide()
+                # For non-installment items, set amount to full amount
+                self.amount_input.setValue(current_data["amount"])
 
         # Update description
         description = item.description or "No description available"
+        if item.is_membership:
+            description += f" (Duration: {item.membership_duration_months} months)"
         self.service_description.setText(description)
 
-        # Show/hide installment option
-        if item.supports_installments:
-            self.installment_checkbox.show()
-            self.installments_count.setMaximum(item.max_installments)
-            self.installment_checkbox.setText(
-                f"Pay in installments (max {item.max_installments})"
-            )
-        else:
-            self.installment_checkbox.hide()
-            self.installment_checkbox.setChecked(False)
-            self.installments_section.hide()
+    def set_full_payment(self):
+        """Set amount to remaining/full payment amount"""
+        if self.selected_payment_item:
+            self.amount_input.setValue(self.selected_payment_item["amount"])
 
-    def toggle_installments(self, checked):
-        """Toggle installment section visibility"""
-        if checked and self.selected_payment_item:
-            self.installments_section.show()
-            self.update_installment_widgets()
-        else:
-            self.installments_section.hide()
-            self.clear_installments()
-
-    def update_installment_widgets(self):
-        """Create/update installment widgets based on count"""
+    def validate_amount(self):
+        """Validate payment amount"""
         if not self.selected_payment_item:
             return
 
-        self.clear_installments()
+        amount = self.amount_input.value()
+        max_amount = self.selected_payment_item["amount"]
 
-        count = self.installments_count.value()
-        total_amount = self.selected_payment_item["amount"]
-        installment_amount = total_amount / count
+        if amount <= 0:
+            self.amount_validation.setText("Amount must be greater than 0")
+            self.amount_validation.setStyleSheet(
+                f"QLabel {{ color: {COLORS.get('error', '#D32F2F')}; font-size: 11px; }}"
+            )
+        elif amount > max_amount:
+            self.amount_validation.setText(f"Amount cannot exceed KSh {max_amount:.2f}")
+            self.amount_validation.setStyleSheet(
+                f"QLabel {{ color: {COLORS.get('error', '#D32F2F')}; font-size: 11px; }}"
+            )
+        else:
+            # Check if partial payment is allowed
+            item = self.selected_payment_item["item"]
+            if not item.supports_installments and amount < max_amount:
+                self.amount_validation.setText(
+                    f"{item.display_name} requires full payment of KSh {max_amount:.2f}"
+                )
+                self.amount_validation.setStyleSheet(
+                    f"QLabel {{ color: {COLORS.get('warning', '#F57C00')}; font-size: 11px; }}"
+                )
+            else:
+                self.amount_validation.setText("")
 
-        for i in range(1, count + 1):
-            widget = InstallmentWidget(i, total_amount)
-            widget.set_amount(installment_amount)
-
-            # Set default due dates (monthly intervals)
-            due_date = QDate.currentDate().addMonths(i - 1)
-            widget.set_due_date(due_date)
-
-            self.installments_layout.addWidget(widget)
-            self.installment_widgets.append(widget)
-
-    def clear_installments(self):
-        """Remove all installment widgets"""
-        for widget in self.installment_widgets:
-            self.installments_layout.removeWidget(widget)
-            widget.deleteLater()
-        self.installment_widgets = []
+    def reset_payment_details(self):
+        """Reset payment details section"""
+        self.total_amount_display.setText("0.00")
+        self.paid_amount_display.setText("0.00")
+        self.amount_input.setValue(0.00)
+        self.amount_input.setMaximum(999999.99)
+        self.payment_status_label.hide()
+        self.full_payment_btn.hide()
+        self.service_description.setText("Select a service...")
+        self.amount_validation.setText("")
 
     def validate_form(self):
-        """Enhanced form validation"""
+        """Validate form before submission"""
         errors = []
 
         if not self.selected_patron:
@@ -859,43 +975,22 @@ class AddPaymentForm(QWidget):
 
         if not self.selected_payment_item:
             errors.append("Please select a payment service")
+        else:
+            amount = self.amount_input.value()
+            max_amount = self.selected_payment_item["amount"]
+            item = self.selected_payment_item["item"]
 
-        # Validate installments if enabled
-        if self.installment_checkbox.isChecked() and self.installment_widgets:
-            total_installments = 0
-            installment_dates = []
-
-            for widget in self.installment_widgets:
-                data = widget.get_data()
-                if data is None:
-                    errors.append(
-                        f"Invalid installment #{widget.installment_number} amount"
-                    )
-                else:
-                    total_installments += data["amount"]
-                    installment_dates.append(data["date"])
-
-            # Check if installments sum matches total
-            expected_total = self.selected_payment_item["amount"]
-            if abs(total_installments - expected_total) > 0.01:
-                errors.append(
-                    f"Installments total ({total_installments:.2f}) must equal "
-                    f"service amount ({expected_total:.2f})"
-                )
-
-            # Check for duplicate dates
-            if len(installment_dates) != len(set(installment_dates)):
-                errors.append("Installment due dates must be unique")
-
-            # Check date ordering
-            sorted_dates = sorted(installment_dates)
-            if installment_dates != sorted_dates:
-                errors.append("Installment due dates should be in chronological order")
+            if amount <= 0:
+                errors.append("Payment amount must be greater than 0")
+            elif amount > max_amount:
+                errors.append(f"Payment amount cannot exceed KSh {max_amount:.2f}")
+            elif not item.supports_installments and amount < max_amount:
+                errors.append(f"{item.display_name} requires full payment")
 
         return errors
 
     def save_payment(self):
-        """Save payment with enhanced validation"""
+        """Save payment with validation"""
         # Validate form
         errors = self.validate_form()
         if errors:
@@ -906,31 +1001,24 @@ class AddPaymentForm(QWidget):
         payment_data = {
             "user_id": self.selected_patron.user_id,
             "payment_item_name": self.selected_payment_item["item"].name,
+            "payment_item_id": self.selected_payment_item["item"].id,
+            "amount": self.amount_input.value(),
             "payment_date": self.payment_date.date().toString("yyyy-MM-dd"),
+            "payment_method": self.payment_method.currentText().lower(),
+            "reference_number": self.reference_input.text().strip() or None,
             "notes": self.notes_input.toPlainText().strip() or None,
         }
-
-        # Handle installments vs full payment
-        if self.installment_checkbox.isChecked() and self.installment_widgets:
-            installments = []
-            for widget in self.installment_widgets:
-                data = widget.get_data()
-                if data:
-                    installments.append(data)
-            payment_data["installments"] = installments
-            payment_data["amount"] = sum(inst["amount"] for inst in installments)
-        else:
-            payment_data["amount"] = self.selected_payment_item["amount"]
 
         # Save through controller
         try:
             result = self.payments_controller.create(payment_data)
             if result.get("success", False):
-                QMessageBox.information(
-                    self,
-                    "Success",
-                    result.get("message", "Payment saved successfully!"),
-                )
+                # Show success message with details
+                message = result.get("message", "Payment saved successfully!")
+                if result.get("remaining", 0) > 0:
+                    message += f"\n\nRemaining balance: KSh {result['remaining']:.2f}"
+
+                QMessageBox.information(self, "Success", message)
                 self.reset_form()
                 self.on_success()
             else:
@@ -949,10 +1037,29 @@ class AddPaymentForm(QWidget):
         # Reset patron search
         self.patron_search.selected_patron = None
         self.patron_search.selected_label.setText("No patron selected")
+        self.patron_search.selected_label.setStyleSheet(
+            f"""
+            QLabel {{
+                background-color: {COLORS.get('surface_variant', '#F5F5F5')};
+                border: 1px solid {COLORS.get('outline', '#E0E0E0')};
+                border-radius: 6px;
+                padding: 8px;
+                font-weight: 500;
+                font-size: 12px;
+                color: {COLORS.get('on_surface_variant', '#666666')};
+            }}
+        """
+        )
         self.patron_search.search_input.clear()
         self.patron_search.search_results.clear()
+        self.membership_status.setText("")
 
         # Reset payment item selection
+        try:
+            self.payment_item_combo.currentIndexChanged.disconnect()
+        except Exception as e:
+            print(e)
+            pass
         self.payment_item_combo.clear()
         self.payment_item_combo.addItem("Select a patron first...", None)
         self.service_description.setText(
@@ -960,111 +1067,8 @@ class AddPaymentForm(QWidget):
         )
 
         # Reset payment details
-        self.amount_display.setText("0.00")
+        self.reset_payment_details()
         self.payment_date.setDate(QDate.currentDate())
+        self.payment_method.setCurrentIndex(0)
+        self.reference_input.clear()
         self.notes_input.clear()
-
-        # Reset installments
-        self.installment_checkbox.setChecked(False)
-        self.installment_checkbox.hide()
-        self.installments_section.hide()
-        self.clear_installments()
-
-
-# Additional utility widget for managing payment items
-class PaymentItemManagerWidget(QWidget):
-    """Widget for administrators to manage payment items"""
-
-    def __init__(self, payment_items_controller):
-        super().__init__()
-        self.payment_items_controller = payment_items_controller
-        self.setup_ui()
-        self.load_payment_items()
-
-    def setup_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
-
-        # Title
-        title = QLabel("Payment Items Management")
-        title.setStyleSheet(
-            f"""
-            QLabel {{
-                font-size: 20px;
-                font-weight: 600;
-                color: {COLORS.get('primary', '#1976D2')};
-                margin-bottom: 16px;
-            }}
-        """
-        )
-        layout.addWidget(title)
-
-        # Add new item button
-        add_btn = MaterialButton("Add New Payment Item", button_type="elevated")
-        add_btn.clicked.connect(self.show_add_item_dialog)
-        layout.addWidget(add_btn)
-
-        # Payment items list
-        self.items_list = QListWidget()
-        self.items_list.setStyleSheet(
-            f"""
-            QListWidget {{
-                border: 1px solid {COLORS.get('outline', '#E0E0E0')};
-                border-radius: 8px;
-                background-color: white;
-                font-size: 13px;
-            }}
-            QListWidget::item {{
-                padding: 12px;
-                border-bottom: 1px solid {COLORS.get('outline_variant', '#F0F0F0')};
-            }}
-        """
-        )
-        layout.addWidget(self.items_list)
-
-    def load_payment_items(self):
-        """Load and display payment items"""
-        try:
-            items = self.payment_items_controller.get_all_active_items()
-            self.items_list.clear()
-
-            for item in items:
-                if item.is_category_based:
-                    # Show category prices
-                    prices_text = ", ".join(
-                        [
-                            f"{price.category.value}: KSh {price.amount:.2f}"
-                            for price in item.category_prices
-                        ]
-                    )
-                    display_text = f"{item.display_name}\n{prices_text}"
-                else:
-                    display_text = f"{item.display_name}\nKSh {item.base_amount:.2f}"
-
-                if item.supports_installments:
-                    display_text += f" (Max {item.max_installments} installments)"
-
-                list_item = QListWidgetItem(display_text)
-                list_item.setData(Qt.UserRole, item)
-                self.items_list.addItem(list_item)
-
-        except Exception as e:
-            QMessageBox.critical(
-                self, "Error", f"Failed to load payment items: {str(e)}"
-            )
-
-    def show_add_item_dialog(self):
-        """Show dialog for adding new payment item"""
-        # This would open a separate dialog for creating payment items
-        # Implementation depends on your UI framework preferences
-        QMessageBox.information(
-            self,
-            "Add Payment Item",
-            "This would open a dialog to add new payment items.\n"
-            "You can implement this as a separate dialog window with fields for:\n"
-            "- Name and display name\n"
-            "- Description\n"
-            "- Base amount or category-based pricing\n"
-            "- Installment settings",
-        )

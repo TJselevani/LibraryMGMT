@@ -1,4 +1,4 @@
-# Enhanced models.py - Flexible Payment System
+# Enhanced models.py - Simplified Partial Payment System
 
 import enum
 import hashlib
@@ -19,7 +19,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import relationship, validates
 from .database import Base
-from datetime import datetime
+from datetime import datetime, date, timedelta
 
 
 class UserRole(enum.Enum):
@@ -38,33 +38,38 @@ class PaymentStatus(enum.Enum):
     PENDING = "pending"
     PARTIAL = "partial"
     COMPLETED = "completed"
-    CANCELLED = "cancelled"
+    EXPIRED = "expired"  # New status for expired memberships
 
 
-# New flexible payment item model
+class MembershipStatus(enum.Enum):
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    EXPIRED = "expired"
+    SUSPENDED = "suspended"  # if you also want suspended
+
+
+# Enhanced PaymentItem with membership duration
 class PaymentItem(Base):
     """
-    Flexible payment items that can be configured dynamically.
-    Replaces the hardcoded PaymentType enum approach.
+    Flexible payment items with membership duration support
     """
 
     __tablename__ = "payment_items"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(
-        String(100), unique=True, nullable=False
-    )  # e.g., "access", "study_room"
-    display_name = Column(String(200), nullable=False)  # e.g., "Daily Access Fee"
+    name = Column(String(100), unique=True, nullable=False)
+    display_name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
-    base_amount = Column(
-        Float, nullable=True
-    )  # Fixed amount for non-category-based items
+    base_amount = Column(Float, nullable=True)
     is_active = Column(Boolean, default=True)
     supports_installments = Column(Boolean, default=False)
     max_installments = Column(Integer, default=1)
-    is_category_based = Column(
-        Boolean, default=False
-    )  # True for membership-type payments
+    is_category_based = Column(Boolean, default=False)
+
+    # New membership-related fields
+    is_membership = Column(Boolean, default=False)  # True for membership items
+    membership_duration_months = Column(Integer, default=12)  # Duration in months
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -79,6 +84,9 @@ class PaymentItem(Base):
             "base_amount IS NULL OR base_amount > 0", name="check_positive_base_amount"
         ),
         CheckConstraint("max_installments > 0", name="check_positive_max_installments"),
+        CheckConstraint(
+            "membership_duration_months > 0", name="check_positive_duration"
+        ),
     )
 
     def get_amount_for_category(self, category):
@@ -86,11 +94,9 @@ class PaymentItem(Base):
         if not self.is_category_based:
             return self.base_amount
 
-        # Find price for this category
         for price in self.category_prices:
             if price.category == category:
                 return price.amount
-
         return None
 
     def get_amount_for_patron(self, patron):
@@ -101,10 +107,7 @@ class PaymentItem(Base):
 
 
 class PaymentItemPrice(Base):
-    """
-    Category-specific pricing for payment items.
-    Allows different amounts for pupils, students, adults, etc.
-    """
+    """Category-specific pricing for payment items"""
 
     __tablename__ = "payment_item_prices"
 
@@ -117,7 +120,6 @@ class PaymentItemPrice(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    # Relationships
     payment_item = relationship("PaymentItem", back_populates="category_prices")
 
     __table_args__ = (
@@ -128,17 +130,179 @@ class PaymentItemPrice(Base):
     )
 
 
-# Keep existing models but update Payment model
-class MembershipPlan(Base):
-    __tablename__ = "membership_plans"
+# Enhanced Patron with membership expiry tracking
+class Patron(Base):
+    __tablename__ = "patrons"
+
+    user_id = Column(Integer, primary_key=True)
+    patron_id = Column(String(5), unique=True, nullable=False)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    institution = Column(String(200))
+    grade_level = Column(String(50))
+    category = Column(Enum(Category), nullable=False)
+    age = Column(Integer)
+    gender = Column(String(10))
+    date_of_birth = Column(Date)
+    residence = Column(String(200))
+    phone_number = Column(String(20))
+
+    # Enhanced membership tracking
+    membership_status = Column(
+        Enum(MembershipStatus), default=MembershipStatus.INACTIVE
+    )
+    membership_start_date = Column(Date, nullable=True)
+    membership_expiry_date = Column(Date, nullable=True)
+    membership_type = Column(String(100), nullable=True)  # Store payment item name
+
+    payments = relationship(
+        "Payment", back_populates="patron", cascade="all, delete-orphan"
+    )
+    borrowed_books = relationship(
+        "BorrowedBook", back_populates="patron", cascade="all, delete-orphan"
+    )
+
+    @validates("category")
+    def validate_category(self, key, category):
+        if isinstance(category, str):
+            try:
+                return Category(category.lower())
+            except ValueError:
+                raise ValueError(f"Invalid category: {category}")
+        return category
+
+    def is_membership_active(self):
+        """Check if membership is currently active and not expired"""
+        if not self.membership_expiry_date:
+            return False
+        return (
+            self.membership_status == MembershipStatus.ACTIVE
+            and self.membership_expiry_date >= date.today()
+        )
+
+    def get_membership_days_remaining(self):
+        """Get days remaining on membership"""
+        if not self.membership_expiry_date:
+            return 0
+        remaining = (self.membership_expiry_date - date.today()).days
+        return max(0, remaining)
+
+    def expire_membership_if_needed(self):
+        """Update membership status if expired"""
+        if (
+            self.membership_expiry_date
+            and self.membership_expiry_date < date.today()
+            and self.membership_status == MembershipStatus.ACTIVE
+        ):
+            self.membership_status = MembershipStatus.EXPIRED
+            return True
+        return False
+
+
+# Simplified Payment model without complex installments
+class Payment(Base):
+    __tablename__ = "payments"
+
+    payment_id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        Integer, ForeignKey("patrons.user_id", ondelete="CASCADE"), nullable=False
+    )
+    payment_item_id = Column(
+        Integer, ForeignKey("payment_items.id", ondelete="CASCADE"), nullable=False
+    )
+
+    # Core payment fields
+    amount_paid = Column(Float, nullable=False)  # Amount actually paid
+    total_amount_due = Column(Float, nullable=False)  # Total amount required
+    payment_date = Column(Date, nullable=False)
+    status = Column(Enum(PaymentStatus), nullable=False, default=PaymentStatus.PENDING)
+
+    # Membership-specific fields
+    membership_start_date = Column(Date, nullable=True)
+    membership_expiry_date = Column(Date, nullable=True)
+    is_membership_active = Column(Boolean, default=False)
+
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    patron = relationship("Patron", back_populates="payments")
+    payment_item = relationship("PaymentItem", back_populates="payments")
+    partial_payments = relationship(
+        "PartialPayment", back_populates="main_payment", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        CheckConstraint("amount_paid > 0", name="check_positive_amount_paid"),
+        CheckConstraint("total_amount_due > 0", name="check_positive_total_due"),
+        CheckConstraint(
+            "amount_paid <= total_amount_due", name="check_amount_not_exceed_total"
+        ),
+    )
+
+    def get_remaining_amount(self):
+        """Get remaining amount to be paid"""
+        return self.total_amount_due - self.amount_paid
+
+    def get_completion_percentage(self):
+        """Get payment completion percentage"""
+        return (self.amount_paid / self.total_amount_due) * 100
+
+    def is_fully_paid(self):
+        """Check if payment is fully completed"""
+        return abs(self.get_remaining_amount()) < 0.01
+
+    def update_status(self):
+        """Update payment status based on amount paid"""
+        if self.is_fully_paid():
+            self.status = PaymentStatus.COMPLETED
+            # Activate membership if it's a membership payment
+            if self.payment_item.is_membership and not self.is_membership_expired():
+                self.is_membership_active = True
+        elif self.amount_paid > 0:
+            self.status = PaymentStatus.PARTIAL
+        else:
+            self.status = PaymentStatus.PENDING
+
+    def is_membership_expired(self):
+        """Check if membership payment has expired"""
+        if not self.payment_item.is_membership or not self.membership_expiry_date:
+            return False
+        return self.membership_expiry_date < date.today()
+
+    def expire_if_needed(self):
+        """Expire membership if past expiry date"""
+        if self.is_membership_expired():
+            self.status = PaymentStatus.EXPIRED
+            self.is_membership_active = False
+            return True
+        return False
+
+
+# New model for tracking individual partial payments
+class PartialPayment(Base):
+    __tablename__ = "partial_payments"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    category = Column(Enum(Category), unique=True, nullable=False)
-    fee = Column(Float, nullable=False)
+    payment_id = Column(
+        Integer, ForeignKey("payments.payment_id", ondelete="CASCADE"), nullable=False
+    )
+    amount = Column(Float, nullable=False)
+    payment_date = Column(Date, nullable=False)
+    payment_method = Column(String(50), nullable=True)  # cash, mpesa, etc.
+    reference_number = Column(String(100), nullable=True)
+    notes = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
 
-    __table_args__ = (CheckConstraint("fee > 0", name="check_positive_fee"),)
+    main_payment = relationship("Payment", back_populates="partial_payments")
+
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="check_positive_partial_amount"),
+    )
 
 
+# Keep existing models (User, UserSession, Book, BorrowedBook) unchanged
 class User(Base):
     __tablename__ = "Users"
 
@@ -171,15 +335,6 @@ class User(Base):
         password_salt = password + self.salt
         return hashlib.sha256(password_salt.encode()).hexdigest() == self.password_hash
 
-    def has_permission(self, required_role):
-        """Check if user has required permission level"""
-        role_hierarchy = {
-            UserRole.ASSISTANT: 1,
-            UserRole.LIBRARIAN: 2,
-            UserRole.ADMIN: 3,
-        }
-        return role_hierarchy[self.role] >= role_hierarchy[required_role]
-
 
 class UserSession(Base):
     __tablename__ = "user_sessions"
@@ -194,132 +349,6 @@ class UserSession(Base):
     is_active = Column(Boolean, default=True)
 
     user = relationship("User", back_populates="sessions")
-
-
-class Patron(Base):
-    __tablename__ = "patrons"
-
-    user_id = Column(Integer, primary_key=True)
-    patron_id = Column(String(5), unique=True, nullable=False)
-    first_name = Column(String(100), nullable=False)
-    last_name = Column(String(100), nullable=False)
-    institution = Column(String(200))
-    grade_level = Column(String(50))
-    category = Column(Enum(Category), nullable=False)
-    age = Column(Integer)
-    gender = Column(String(10))
-    date_of_birth = Column(Date)
-    residence = Column(String(200))
-    phone_number = Column(String(20))
-    membership_status = Column(String(20), default="inactive")
-
-    payments = relationship(
-        "Payment", back_populates="patron", cascade="all, delete-orphan"
-    )
-    borrowed_books = relationship(
-        "BorrowedBook", back_populates="patron", cascade="all, delete-orphan"
-    )
-
-    @validates("category")
-    def validate_category(self, key, category):
-        if isinstance(category, str):
-            try:
-                return Category(category.lower())
-            except ValueError:
-                raise ValueError(f"Invalid category: {category}")
-        return category
-
-
-# Updated Payment model
-class Payment(Base):
-    __tablename__ = "payments"
-
-    payment_id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(
-        Integer, ForeignKey("patrons.user_id", ondelete="CASCADE"), nullable=False
-    )
-    payment_item_id = Column(
-        Integer, ForeignKey("payment_items.id", ondelete="CASCADE"), nullable=False
-    )
-    amount = Column(Float, nullable=False)
-    payment_date = Column(Date, nullable=False)
-    status = Column(
-        Enum(PaymentStatus), nullable=False, default=PaymentStatus.COMPLETED
-    )
-    notes = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relationships
-    patron = relationship("Patron", back_populates="payments")
-    payment_item = relationship("PaymentItem", back_populates="payments")
-    installments = relationship(
-        "Installment", back_populates="payment", cascade="all, delete-orphan"
-    )
-
-    __table_args__ = (CheckConstraint("amount > 0", name="check_positive_amount"),)
-
-    def calculate_completion_percentage(self):
-        """Calculate payment completion percentage based on installments"""
-        if not self.installments:
-            return 100.0 if self.status == PaymentStatus.COMPLETED else 0.0
-
-        total_amount = sum(inst.amount for inst in self.installments)
-        paid_amount = sum(inst.amount for inst in self.installments if inst.is_paid)
-
-        return (paid_amount / total_amount) * 100 if total_amount > 0 else 0.0
-
-    def update_status(self):
-        """Update payment status based on installment completion"""
-        if not self.installments:
-            return
-
-        completion = self.calculate_completion_percentage()
-
-        if completion == 0:
-            self.status = PaymentStatus.PENDING
-        elif completion == 100:
-            self.status = PaymentStatus.COMPLETED
-        else:
-            self.status = PaymentStatus.PARTIAL
-
-
-class Installment(Base):
-    __tablename__ = "installments"
-
-    installment_id = Column(Integer, primary_key=True, autoincrement=True)
-    payment_id = Column(
-        Integer, ForeignKey("payments.payment_id", ondelete="CASCADE"), nullable=False
-    )
-    installment_number = Column(Integer, nullable=False)
-    amount = Column(Float, nullable=False)
-    due_date = Column(Date, nullable=False)
-    paid_date = Column(Date, nullable=True)
-    is_paid = Column(Boolean, default=False)
-    notes = Column(Text, nullable=True)
-
-    payment = relationship("Payment", back_populates="installments")
-
-    __table_args__ = (
-        CheckConstraint("amount > 0", name="check_positive_installment_amount"),
-        CheckConstraint(
-            "installment_number > 0", name="check_positive_installment_number"
-        ),
-        UniqueConstraint(
-            "payment_id", "installment_number", name="unique_payment_installment"
-        ),
-    )
-
-    @validates("installment_number", "amount")
-    def validate_installment(self, key, value):
-        if key == "installment_number":
-            if value <= 0:
-                raise ValueError("Installment number must be positive")
-            return value
-        elif key == "amount":
-            if value <= 0:
-                raise ValueError("Installment amount must be positive")
-            return value
 
 
 class Book(Base):
@@ -365,9 +394,9 @@ class BorrowedBook(Base):
     )
 
 
-# Enhanced Payment Service with flexible configuration
+# Enhanced Payment Service
 class PaymentService:
-    """Enhanced service class for payment-related business logic"""
+    """Enhanced service class for simplified partial payment system"""
 
     @classmethod
     def get_payment_amount(cls, payment_item, patron=None):
@@ -378,55 +407,94 @@ class PaymentService:
                     f"Patron required for category-based payment: {payment_item.name}"
                 )
             return payment_item.get_amount_for_patron(patron)
-
         return payment_item.base_amount
 
     @classmethod
-    def validate_payment_data(cls, payment_data, patron, payment_item):
-        """Validate payment data before creation"""
-        errors = []
+    def get_existing_incomplete_payment(cls, session, user_id, payment_item_name):
+        """Get existing incomplete payment for the same payment item"""
+        from sqlalchemy.orm import joinedload
 
-        # Validate amount
-        expected_amount = cls.get_payment_amount(payment_item, patron)
-        if expected_amount is None:
-            errors.append(
-                f"No price configured for {payment_item.name} and patron category {patron.category.value}"
+        return (
+            session.query(Payment)
+            .join(PaymentItem)
+            .options(joinedload(Payment.partial_payments))
+            .filter(
+                Payment.user_id == user_id,
+                PaymentItem.name == payment_item_name,
+                Payment.status.in_([PaymentStatus.PENDING, PaymentStatus.PARTIAL]),
+                # Only check for non-expired payments
+                Payment.status != PaymentStatus.EXPIRED,
             )
-            return errors
+            .first()
+        )
 
-        actual_amount = payment_data.get("amount", 0)
+    @classmethod
+    def calculate_membership_dates(cls, payment_item, start_date=None):
+        """Calculate membership start and expiry dates"""
+        if not payment_item.is_membership:
+            return None, None
 
-        # For installment payments, validate total installments match expected amount
-        installments = payment_data.get("installments", [])
-        if installments:
-            if not payment_item.supports_installments:
-                errors.append(
-                    f"{payment_item.display_name} does not support installments"
-                )
-                return errors
+        start_date = start_date or date.today()
+        expiry_date = start_date + timedelta(
+            days=payment_item.membership_duration_months * 30
+        )
 
-            if len(installments) > payment_item.max_installments:
-                errors.append(
-                    f"Maximum {payment_item.max_installments} installments allowed for {payment_item.display_name}"
-                )
+        return start_date, expiry_date
 
-            total_installments = sum(inst.get("amount", 0) for inst in installments)
-            if abs(total_installments - expected_amount) > 0.01:
-                errors.append(
-                    f"Installments must total {expected_amount}, got {total_installments}"
-                )
-        else:
-            # Full payment validation
-            if abs(actual_amount - expected_amount) > 0.01:
-                errors.append(
-                    f"Invalid amount for {payment_item.display_name}: expected {expected_amount}, got {actual_amount}"
-                )
+    @classmethod
+    def activate_membership(cls, session, patron, payment):
+        """Activate membership for patron"""
+        if not payment.payment_item.is_membership or not payment.is_fully_paid():
+            return False
 
-        return errors
+        # Update patron membership info
+        patron.membership_status = MembershipStatus.ACTIVE
+        patron.membership_start_date = payment.membership_start_date
+        patron.membership_expiry_date = payment.membership_expiry_date
+        patron.membership_type = payment.payment_item.name
+
+        return True
+
+    @classmethod
+    def expire_old_memberships(cls, session):
+        """Expire all memberships that have passed their expiry date"""
+        expired_count = 0
+
+        # Expire payments
+        expired_payments = (
+            session.query(Payment)
+            .join(PaymentItem)
+            .filter(
+                PaymentItem.is_membership.is_(True),
+                Payment.membership_expiry_date < date.today(),
+                Payment.status != PaymentStatus.EXPIRED,
+            )
+            .all()
+        )
+
+        for payment in expired_payments:
+            payment.expire_if_needed()
+            expired_count += 1
+
+        # Expire patron memberships
+        expired_patrons = (
+            session.query(Patron)
+            .filter(
+                Patron.membership_expiry_date < date.today(),
+                Patron.membership_status == MembershipStatus.ACTIVE,
+            )
+            .all()
+        )
+
+        for patron in expired_patrons:
+            patron.expire_membership_if_needed()
+
+        session.commit()
+        return expired_count
 
     @classmethod
     def create_default_payment_items(cls, session):
-        """Create default payment items for initial setup"""
+        """Create default payment items with membership durations"""
         default_items = [
             {
                 "name": "access",
@@ -435,6 +503,7 @@ class PaymentService:
                 "base_amount": 20.0,
                 "supports_installments": False,
                 "is_category_based": False,
+                "is_membership": False,
             },
             {
                 "name": "study_room",
@@ -443,36 +512,40 @@ class PaymentService:
                 "base_amount": 150.0,
                 "supports_installments": False,
                 "is_category_based": False,
+                "is_membership": False,
             },
             {
                 "name": "membership",
                 "display_name": "Annual Membership",
                 "description": "Annual library membership with full access",
                 "supports_installments": True,
+                "max_installments": 12,
+                "is_category_based": True,
+                "is_membership": True,
+                "membership_duration_months": 12,
+            },
+            {
+                "name": "quarterly_membership",
+                "display_name": "Quarterly Membership",
+                "description": "3-month library membership",
+                "supports_installments": True,
                 "max_installments": 3,
                 "is_category_based": True,
+                "is_membership": True,
+                "membership_duration_months": 3,
             },
             {
-                "name": "book_replacement",
-                "display_name": "Book Replacement Fee",
-                "description": "Fee for replacing lost or damaged books",
-                "base_amount": 500.0,
-                "supports_installments": True,
-                "max_installments": 2,
-                "is_category_based": False,
-            },
-            {
-                "name": "late_return_fine",
-                "display_name": "Late Return Fine",
-                "description": "Fine for returning books after due date",
-                "base_amount": 5.0,
+                "name": "monthly_membership",
+                "display_name": "Monthly Membership",
+                "description": "1-month library membership",
                 "supports_installments": False,
-                "is_category_based": False,
+                "is_category_based": True,
+                "is_membership": True,
+                "membership_duration_months": 1,
             },
         ]
 
         for item_data in default_items:
-            # Check if item already exists
             existing = (
                 session.query(PaymentItem).filter_by(name=item_data["name"]).first()
             )
@@ -481,175 +554,40 @@ class PaymentService:
                 session.add(item)
 
         # Create membership category prices
-        membership_item = (
-            session.query(PaymentItem).filter_by(name="membership").first()
-        )
-        if membership_item:
-            membership_prices = [
-                {"category": Category.PUPIL, "amount": 200.0},
-                {"category": Category.STUDENT, "amount": 450.0},
-                {"category": Category.ADULT, "amount": 600.0},
-            ]
+        membership_items = ["membership", "quarterly_membership", "monthly_membership"]
+        membership_prices = {
+            "membership": {
+                Category.PUPIL: 200.0,
+                Category.STUDENT: 450.0,
+                Category.ADULT: 600.0,
+            },
+            "quarterly_membership": {
+                Category.PUPIL: 60.0,
+                Category.STUDENT: 135.0,
+                Category.ADULT: 180.0,
+            },
+            "monthly_membership": {
+                Category.PUPIL: 25.0,
+                Category.STUDENT: 50.0,
+                Category.ADULT: 75.0,
+            },
+        }
 
-            for price_data in membership_prices:
-                existing_price = (
-                    session.query(PaymentItemPrice)
-                    .filter_by(
-                        payment_item_id=membership_item.id,
-                        category=price_data["category"],
+        for item_name in membership_items:
+            item = session.query(PaymentItem).filter_by(name=item_name).first()
+            if item and item_name in membership_prices:
+                for category, amount in membership_prices[item_name].items():
+                    existing_price = (
+                        session.query(PaymentItemPrice)
+                        .filter_by(payment_item_id=item.id, category=category)
+                        .first()
                     )
-                    .first()
-                )
-
-                if not existing_price:
-                    price = PaymentItemPrice(
-                        payment_item_id=membership_item.id, **price_data
-                    )
-                    session.add(price)
-
-        session.commit()
-
-
-# Enhanced Payment Item Controller
-class PaymentItemController:
-    """Controller for managing payment items and their configurations"""
-
-    def __init__(self, db_manager):
-        self.db_manager = db_manager
-
-    def get_all_active_items(self):
-        """Get all active payment items"""
-        with self.db_manager.get_session() as session:
-            return (
-                session.query(PaymentItem).filter(PaymentItem.is_active.is_(True)).all()
-            )
-
-    def get_item_by_name(self, name):
-        """Get payment item by name"""
-        with self.db_manager.get_session() as session:
-            return session.query(PaymentItem).filter(PaymentItem.name == name).first()
-
-    def create_payment_item(self, item_data):
-        """Create a new payment item"""
-        try:
-            with self.db_manager.get_session() as session:
-                # Validate required fields
-                required_fields = ["name", "display_name"]
-                for field in required_fields:
-                    if field not in item_data or not item_data[field]:
-                        return {
-                            "success": False,
-                            "message": f"Missing required field: {field}",
-                        }
-
-                # Check for duplicate name
-                existing = (
-                    session.query(PaymentItem).filter_by(name=item_data["name"]).first()
-                )
-                if existing:
-                    return {
-                        "success": False,
-                        "message": f"Payment item with name '{item_data['name']}' already exists",
-                    }
-
-                # Create payment item
-                payment_item = PaymentItem(**item_data)
-                session.add(payment_item)
-                session.flush()  # Get ID
-
-                # Create category prices if specified
-                if item_data.get("category_prices"):
-                    for price_data in item_data["category_prices"]:
-                        price = PaymentItemPrice(
-                            payment_item_id=payment_item.id,
-                            category=Category(price_data["category"]),
-                            amount=price_data["amount"],
-                        )
-                        session.add(price)
-
-                session.commit()
-                session.refresh(payment_item)
-
-                return {
-                    "success": True,
-                    "payment_item": payment_item,
-                    "message": f"Payment item '{payment_item.display_name}' created successfully",
-                }
-
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"Error creating payment item: {str(e)}",
-            }
-
-    def update_payment_item(self, item_id, update_data):
-        """Update a payment item"""
-        try:
-            with self.db_manager.get_session() as session:
-                item = (
-                    session.query(PaymentItem).filter(PaymentItem.id == item_id).first()
-                )
-                if not item:
-                    return {"success": False, "message": "Payment item not found"}
-
-                # Update basic fields
-                for key, value in update_data.items():
-                    if key != "category_prices" and hasattr(item, key):
-                        setattr(item, key, value)
-
-                # Update category prices if provided
-                if "category_prices" in update_data:
-                    # Remove existing prices
-                    session.query(PaymentItemPrice).filter_by(
-                        payment_item_id=item.id
-                    ).delete()
-
-                    # Add new prices
-                    for price_data in update_data["category_prices"]:
+                    if not existing_price:
                         price = PaymentItemPrice(
                             payment_item_id=item.id,
-                            category=Category(price_data["category"]),
-                            amount=price_data["amount"],
+                            category=category,
+                            amount=amount,
                         )
                         session.add(price)
 
-                item.updated_at = datetime.utcnow()
-                session.commit()
-                session.refresh(item)
-
-                return {
-                    "success": True,
-                    "payment_item": item,
-                    "message": f"Payment item '{item.display_name}' updated successfully",
-                }
-
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"Error updating payment item: {str(e)}",
-            }
-
-    def deactivate_payment_item(self, item_id):
-        """Deactivate a payment item (soft delete)"""
-        return self.update_payment_item(item_id, {"is_active": False})
-
-    def get_payment_items_for_patron(self, patron):
-        """Get all payment items with their amounts for a specific patron"""
-        with self.db_manager.get_session() as session:
-            items = (
-                session.query(PaymentItem).filter(PaymentItem.is_active.is_(True)).all()
-            )
-
-            result = []
-            for item in items:
-                amount = item.get_amount_for_patron(patron)
-                if amount is not None:  # Only include items with valid pricing
-                    result.append(
-                        {
-                            "item": item,
-                            "amount": amount,
-                            "formatted_display": f"{item.display_name} - KSh {amount:.2f}",
-                        }
-                    )
-
-            return result
+        session.commit()

@@ -14,7 +14,7 @@ from PyQt5.QtCore import QDate
 from ui.widgets.buttons.material_button import MaterialButton
 from utils.constants import COLORS
 from datetime import datetime
-from db.models import Category
+from db.models import Category, MembershipStatus
 
 
 class AddPatronForm(QWidget):
@@ -448,7 +448,11 @@ class AddPatronForm(QWidget):
         academic_layout.addWidget(membership_label)
 
         self.membership_status = QComboBox()
-        self.membership_status.addItems(["inactive", "active", "expired", "suspended"])
+        for status in MembershipStatus:
+            self.membership_status.addItem(
+                status.value, status
+            )  # show lowercase, store Enum
+
         self.membership_status.setStyleSheet(
             f"""
             QComboBox {{
@@ -776,6 +780,9 @@ class AddPatronForm(QWidget):
             )
             return
 
+        # status_text = self.membership_status.currentText().lower()
+        status_enum = self.membership_status.currentData()
+
         # Prepare patron data
         data = {
             "first_name": self.first_name.text().strip(),
@@ -794,7 +801,7 @@ class AddPatronForm(QWidget):
                 if self.phone_number.text().strip()
                 else None
             ),
-            "membership_status": self.membership_status.currentText().lower(),
+            "membership_status": status_enum,  # store as Enum instead of string,
         }
 
         # Save through controller

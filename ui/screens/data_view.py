@@ -122,7 +122,7 @@ class LibraryDataView(QWidget):
                 else "unknown"
             )
             table.setItem(row, 2, QTableWidgetItem(payment_type_text))
-            table.setItem(row, 3, QTableWidgetItem(str(p.amount or "")))
+            table.setItem(row, 3, QTableWidgetItem(str(p.amount_paid or "")))
             table.setItem(row, 4, QTableWidgetItem(str(p.payment_date or "")))
 
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
