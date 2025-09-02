@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtCore import pyqtSignal
-from datetime import datetime
+from datetime import datetime, date
 
 from controllers.patrons_controller import PatronsController
 from controllers.books_controller import BooksController
@@ -353,7 +353,7 @@ class CompositeDataView(QWidget):
         elif self.current_view == "Books":
             self.populate_books_table(data)
         elif self.current_view == "Borrowed Books":
-            self.populate_borrowed_books_table(data)
+            self.populate_borrowed_books_table_enhanced(data)
         elif self.current_view == "Payments":
             self.populate_payments_table(data)
 
@@ -452,37 +452,6 @@ class CompositeDataView(QWidget):
                 row, 7, QTableWidgetItem(getattr(book, "location", "") or "")
             )
 
-    def populate_borrowed_books_table(self, borrowed_books):
-        """Populate borrowed books table"""
-        for row, bb in enumerate(borrowed_books):
-            self.table.setItem(row, 0, QTableWidgetItem(str(bb.borrow_id)))
-            self.table.setItem(row, 1, QTableWidgetItem(str(bb.user_id)))
-            self.table.setItem(row, 2, QTableWidgetItem(str(bb.book_id)))
-            self.table.setItem(
-                row, 3, QTableWidgetItem(getattr(bb, "book_title", "") or "")
-            )
-            self.table.setItem(row, 4, QTableWidgetItem(str(bb.borrow_date or "")))
-            self.table.setItem(
-                row, 5, QTableWidgetItem(str(getattr(bb, "due_date", "") or ""))
-            )
-            self.table.setItem(row, 6, QTableWidgetItem(str(bb.return_date or "")))
-
-            # Status with color coding
-            status = "Returned" if bb.returned else "Active"
-            if hasattr(bb, "due_date") and bb.due_date and not bb.returned:
-                # Check if overdue (simplified - you might want to use proper date comparison)
-                status = "Overdue"
-
-            status_item = QTableWidgetItem(status)
-            if status == "Returned":
-                status_item.setForeground(QColor(COLORS["success"]))
-            elif status == "Overdue":
-                status_item.setForeground(QColor(COLORS["error"]))
-            else:
-                status_item.setForeground(QColor(COLORS["warning"]))
-
-            self.table.setItem(row, 7, status_item)
-
     def populate_payments_table(self, payments):
         """Populate payments table"""
         for row, payment in enumerate(payments):
@@ -540,6 +509,218 @@ class CompositeDataView(QWidget):
                 status_item.setForeground(QColor(COLORS["error"]))
 
             self.table.setItem(row, 6, status_item)
+
+    def populate_borrowed_books_table(self, borrowed_books):
+        """Populate borrowed books table with proper date formatting and status"""
+        for row, bb in enumerate(borrowed_books):
+            try:
+                # Basic IDs
+                self.table.setItem(row, 0, QTableWidgetItem(str(bb.borrow_id)))
+                self.table.setItem(row, 1, QTableWidgetItem(str(bb.user_id)))
+                self.table.setItem(row, 2, QTableWidgetItem(str(bb.book_id)))
+
+                # Book title - get from relationship or fallback
+                book_title = ""
+                if hasattr(bb, "book") and bb.book:
+                    book_title = bb.book.title
+                elif hasattr(bb, "book_title"):
+                    book_title = bb.book_title
+                self.table.setItem(row, 3, QTableWidgetItem(book_title))
+
+                # Format dates properly
+                borrow_date_str = ""
+                if bb.borrow_date:
+                    if isinstance(bb.borrow_date, date):
+                        borrow_date_str = bb.borrow_date.strftime("%Y-%m-%d")
+                    else:
+                        borrow_date_str = str(bb.borrow_date)
+                self.table.setItem(row, 4, QTableWidgetItem(borrow_date_str))
+
+                due_date_str = ""
+                if bb.due_date:
+                    if isinstance(bb.due_date, date):
+                        due_date_str = bb.due_date.strftime("%Y-%m-%d")
+                    else:
+                        due_date_str = str(bb.due_date)
+                self.table.setItem(row, 5, QTableWidgetItem(due_date_str))
+
+                # Return date
+                return_date_str = ""
+                if bb.return_date:
+                    if isinstance(bb.return_date, date):
+                        return_date_str = bb.return_date.strftime("%Y-%m-%d")
+                    else:
+                        return_date_str = str(bb.return_date)
+                self.table.setItem(row, 6, QTableWidgetItem(return_date_str))
+
+                # Determine status with proper logic
+                status, color = self._determine_book_status(bb)
+
+                status_item = QTableWidgetItem(status)
+                status_item.setForeground(QColor(color))
+                self.table.setItem(row, 7, status_item)
+
+            except Exception as e:
+                print(f"Error populating row {row}: {e}")
+                # Fill with empty values if there's an error
+                for col in range(8):
+                    if self.table.item(row, col) is None:
+                        self.table.setItem(row, col, QTableWidgetItem(""))
+
+    def _determine_book_status(self, borrowed_book):
+        """Determine the status and color for a borrowed book"""
+        try:
+            if borrowed_book.returned:
+                return "Returned", COLORS["success"]
+
+            # Check if overdue
+            if borrowed_book.due_date:
+                today = date.today()
+
+                # Handle different date formats
+                due_date = borrowed_book.due_date
+                if isinstance(due_date, str):
+                    try:
+                        due_date = datetime.strptime(due_date, "%Y-%m-%d").date()
+                    except ValueError:
+                        # If string parsing fails, assume it's not overdue
+                        return "Active", COLORS["warning"]
+
+                if due_date < today:
+                    days_overdue = (today - due_date).days
+                    return f"Overdue ({days_overdue} days)", COLORS["error"]
+                elif due_date == today:
+                    return "Due Today", COLORS["warning"]
+                else:
+                    # Calculate days remaining
+                    days_remaining = (due_date - today).days
+                    if days_remaining <= 3:
+                        return f"Due Soon ({days_remaining} days)", COLORS["warning"]
+                    else:
+                        return "Active", COLORS["info"]
+            else:
+                return "Active", COLORS["info"]
+
+        except Exception as e:
+            print(f"Error determining status: {e}")
+            return "Unknown", COLORS["text"]
+
+    # Alternative method with enhanced status information
+    def populate_borrowed_books_table_enhanced(self, borrowed_books):
+        """Enhanced version with more detailed information"""
+        for row, bb in enumerate(borrowed_books):
+            try:
+                # Basic information
+                self.table.setItem(row, 0, QTableWidgetItem(str(bb.borrow_id)))
+                self.table.setItem(row, 1, QTableWidgetItem(str(bb.user_id)))
+
+                # Patron name if available
+                patron_name = ""
+                if hasattr(bb, "patron") and bb.patron:
+                    patron_name = f"{bb.patron.first_name} {bb.patron.last_name}"
+                self.table.setItem(row, 2, QTableWidgetItem(patron_name))
+
+                self.table.setItem(row, 3, QTableWidgetItem(str(bb.book_id)))
+
+                # Book details
+                book_info = ""
+                if hasattr(bb, "book") and bb.book:
+                    book_info = f"{bb.book.title} - {bb.book.author}"
+                self.table.setItem(row, 4, QTableWidgetItem(book_info))
+
+                # Dates with proper formatting
+                borrow_date = self._format_date(bb.borrow_date)
+                due_date = self._format_date(bb.due_date)
+                return_date = (
+                    self._format_date(bb.return_date) if bb.return_date else ""
+                )
+
+                self.table.setItem(row, 5, QTableWidgetItem(borrow_date))
+                self.table.setItem(row, 6, QTableWidgetItem(due_date))
+                self.table.setItem(row, 7, QTableWidgetItem(return_date))
+
+                # Status and fine information
+                status, color = self._determine_book_status_enhanced(bb)
+                status_item = QTableWidgetItem(status)
+                status_item.setForeground(QColor(color))
+                self.table.setItem(row, 8, status_item)
+
+                # Fine amount
+                fine_amount = f"KSh {bb.fine_amount:.2f}" if bb.fine_amount > 0 else ""
+                self.table.setItem(row, 9, QTableWidgetItem(fine_amount))
+
+            except Exception as e:
+                print(f"Error populating enhanced row {row}: {e}")
+
+    def _format_date(self, date_obj):
+        """Helper method to format dates consistently"""
+        if not date_obj:
+            return ""
+
+        try:
+            if isinstance(date_obj, str):
+                # Try to parse string date
+                parsed_date = datetime.strptime(date_obj, "%Y-%m-%d").date()
+                return parsed_date.strftime("%Y-%m-%d")
+            elif isinstance(date_obj, (date, datetime)):
+                if isinstance(date_obj, datetime):
+                    date_obj = date_obj.date()
+                return date_obj.strftime("%Y-%m-%d")
+            else:
+                return str(date_obj)
+        except Exception as e:
+            print(f"Error formatting date {date_obj}: {e}")
+            return str(date_obj) if date_obj else ""
+
+    def _determine_book_status_enhanced(self, borrowed_book):
+        """Enhanced status determination with more details"""
+        try:
+            if borrowed_book.returned:
+                if borrowed_book.fine_amount > 0:
+                    return (
+                        f"Returned (Fine: KSh {borrowed_book.fine_amount:.2f})",
+                        COLORS["success"],
+                    )
+                else:
+                    return "Returned", COLORS["success"]
+
+            # For active borrows
+            if borrowed_book.due_date:
+                today = date.today()
+                due_date = borrowed_book.due_date
+
+                # Handle string dates
+                if isinstance(due_date, str):
+                    try:
+                        due_date = datetime.strptime(due_date, "%Y-%m-%d").date()
+                    except ValueError:
+                        return "Active", COLORS["info"]
+
+                if due_date < today:
+                    days_overdue = (today - due_date).days
+                    return (
+                        f"Overdue ({days_overdue} day{'s' if days_overdue != 1 else ''})",
+                        COLORS["error"],
+                    )
+                elif due_date == today:
+                    return "Due Today!", COLORS["warning"]
+                else:
+                    days_remaining = (due_date - today).days
+                    if days_remaining <= 3:
+                        return (
+                            f"Due in {days_remaining} day{'s' if days_remaining != 1 else ''}",
+                            COLORS["warning"],
+                        )
+                    elif days_remaining <= 7:
+                        return f"Due in {days_remaining} days", COLORS["info"]
+                    else:
+                        return "Active", COLORS["info"]
+            else:
+                return "Active (No due date)", COLORS["warning"]
+
+        except Exception as e:
+            print(f"Error in enhanced status determination: {e}")
+            return "Error", COLORS["error"]
 
     def set_column_resize_modes(self):
         """Set appropriate column resize modes for current view"""
