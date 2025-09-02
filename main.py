@@ -1,10 +1,10 @@
 # main.py
 import sys
 from PyQt5.QtWidgets import QApplication
-from ui.screens.main_Window import MainWindow
 from ui.screens.login_window import LoginWindow
 from utils.database_manager import MyDatabaseManager
 from services.auth_service import AuthenticationService
+from app.application import create_application
 
 
 class ApplicationManager:
@@ -24,16 +24,10 @@ class ApplicationManager:
     def launch_main_window(self, user_info):
         if self.login_window:
             self.login_window.hide()
-        self.main_window = MainWindow(self.auth_service, user_info)
-        self.main_window.show()
 
-        def on_main_window_close():
-            if getattr(self.main_window, "logout_requested", False):
-                self.show_login_window()
-            else:
-                self.app.quit()
-
-        self.main_window.destroyed.connect(on_main_window_close)
+        # Delegate creation of the application (wires dependencies)
+        app_instance = create_application(self.auth_service, user_info)
+        sys.exit(app_instance.run())
 
     def show_login_window(self):
         self.login_window = LoginWindow(self.auth_service)

@@ -1,19 +1,14 @@
-from PyQt5.QtWidgets import (
-    QWidget,
-    QVBoxLayout,
-    QPushButton,
-)
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton
 from PyQt5.QtGui import QFont
 from PyQt5.QtCore import Qt
 from utils.constants import COLORS
+from app.main_window import ViewType  # ✅ import your enum
 
 
-# Material Design Navigation Rail (Sidebar)
 class MaterialNavigationRail(QWidget):
     def __init__(self, parent):
         super().__init__()
         self.parent = parent
-        # self.patrons_controller = PatronsController(self.auth_service.db_manager)
         self.active_button = None
         self.setup_ui()
 
@@ -39,11 +34,19 @@ class MaterialNavigationRail(QWidget):
         self.books_btn = self.create_nav_button("📚", "Books")
         self.settings_btn = self.create_nav_button("⚙️", "Settings")
 
-        # Connect buttons
-        self.home_btn.clicked.connect(lambda: self.parent.show_home())
-        self.users_btn.clicked.connect(lambda: self.parent.show_all_tables())
-        self.books_btn.clicked.connect(lambda: self.parent.show_data())
-        self.settings_btn.clicked.connect(lambda: self.parent.show_users())
+        # ✅ Use navigate_to with proper ViewTypes
+        self.home_btn.clicked.connect(
+            lambda: self.parent.navigate_to(ViewType.DASHBOARD)
+        )
+        self.users_btn.clicked.connect(
+            lambda: self.parent.navigate_to(ViewType.ALL_TABLES)
+        )
+        self.books_btn.clicked.connect(
+            lambda: self.parent.navigate_to(ViewType.LIBRARY_DATA)
+        )
+        self.settings_btn.clicked.connect(
+            lambda: self.parent.navigate_to(ViewType.ALL_TABLES)
+        )
 
         layout.addWidget(self.home_btn)
         layout.addWidget(self.users_btn)
@@ -90,16 +93,14 @@ class MaterialNavigationRail(QWidget):
             """
             )
 
-        # Set icon text
         btn.setText(icon)
 
-        # Add click handler for active state
+        # Active state tracking
         btn.clicked.connect(lambda: self.set_active_button(btn))
 
         return btn
 
     def set_active_button(self, button):
-        # Reset previous active button
         if self.active_button:
             self.active_button.setStyleSheet(
                 f"""
@@ -116,7 +117,6 @@ class MaterialNavigationRail(QWidget):
             """
             )
 
-        # Set new active button
         button.setStyleSheet(
             f"""
             QPushButton {{
