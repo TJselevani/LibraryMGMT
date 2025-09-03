@@ -69,7 +69,7 @@ class PatronsView(QWidget):
         self.table = MaterialTable()
 
         # Make the table expand vertically
-        self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.table.setSizePolicy(self, QSizePolicy.Expanding, QSizePolicy.Expanding)
 
         # Add with stretch factor = 1 so it takes all remaining space
         layout.addWidget(self.table, stretch=1)

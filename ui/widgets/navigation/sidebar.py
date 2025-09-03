@@ -30,12 +30,14 @@ class MaterialNavigationRail(QWidget):
 
         # Navigation items
         self.home_btn = self.create_nav_button("🏠", "Home", active=True)
+        self.dash_btn = self.create_nav_button("🏠", "Dashboard")
         self.users_btn = self.create_nav_button("👤", "Users")
         self.books_btn = self.create_nav_button("📚", "Books")
         self.settings_btn = self.create_nav_button("⚙️", "Settings")
 
         # ✅ Use navigate_to with proper ViewTypes
-        self.home_btn.clicked.connect(
+        self.home_btn.clicked.connect(lambda: self.parent.navigate_to(ViewType.HOME))
+        self.dash_btn.clicked.connect(
             lambda: self.parent.navigate_to(ViewType.DASHBOARD)
         )
         self.users_btn.clicked.connect(
@@ -45,10 +47,11 @@ class MaterialNavigationRail(QWidget):
             lambda: self.parent.navigate_to(ViewType.LIBRARY_DATA)
         )
         self.settings_btn.clicked.connect(
-            lambda: self.parent.navigate_to(ViewType.ALL_TABLES)
+            lambda: self.parent.navigate_to(ViewType.USERS)
         )
 
         layout.addWidget(self.home_btn)
+        layout.addWidget(self.dash_btn)
         layout.addWidget(self.users_btn)
         layout.addWidget(self.books_btn)
         layout.addWidget(self.settings_btn)

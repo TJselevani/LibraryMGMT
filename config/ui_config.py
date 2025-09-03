@@ -10,6 +10,7 @@ from dataclasses import dataclass
 class ViewType(Enum):
     """Enumeration of available view types"""
 
+    HOME = "home"
     DASHBOARD = "dashboard"
     USERS = "users"
     PATRONS = "patrons"
@@ -38,6 +39,11 @@ class AppConfig:
     WINDOW_GEOMETRY = (200, 100, 1400, 900)
 
     VIEW_CONFIGS = {
+        ViewType.HOME: ViewConfig(
+            title=None,
+            subtitle=None,
+            action_buttons=None,
+        ),
         ViewType.DASHBOARD: ViewConfig(
             title="Dashboard",
             subtitle="Welcome back! Here's what's happening in your library today.",

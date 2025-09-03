@@ -19,10 +19,11 @@ class ViewFactory:
     def __init__(self, container: DependencyContainer):
         self.container = container
         self._view_creators = {
+            ViewType.HOME: self._create_homepage_view,
             ViewType.DASHBOARD: self._create_dashboard_view,
-            ViewType.USERS: self._create_users_view,
             ViewType.ALL_TABLES: self._create_composite_view,
             ViewType.LIBRARY_DATA: self._create_library_data_view,
+            ViewType.USERS: self._create_users_view,
         }
 
     def create_view(self, view_type: ViewType, **kwargs) -> QWidget:
@@ -31,6 +32,12 @@ class ViewFactory:
         if creator:
             return creator(**kwargs)
         raise ValueError(f"Unknown view type: {view_type}")
+
+    def _create_homepage_view(self, **kwargs) -> QWidget:
+        """Create dashboard view"""
+        from ui.screens.home_view import HomeView
+
+        return HomeView()
 
     def _create_dashboard_view(self, **kwargs) -> QWidget:
         """Create dashboard view"""

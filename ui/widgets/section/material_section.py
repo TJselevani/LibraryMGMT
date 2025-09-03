@@ -24,12 +24,13 @@ class MaterialSection(MaterialCard):
         # Header
         header = QHBoxLayout()
 
-        self.title_label = QLabel(title)
-        self.title_label.setFont(QFont("Segoe UI", 16, QFont.Medium))
-        self.title_label.setStyleSheet(f"color: {COLORS['on_surface']};")
+        if title:
+            self.title_label = QLabel(title)
+            self.title_label.setFont(QFont("Segoe UI", 16, QFont.Medium))
+            self.title_label.setStyleSheet(f"color: {COLORS['on_surface']};")
 
-        header.addWidget(self.title_label)
-        header.addStretch()
+            header.addWidget(self.title_label)
+            header.addStretch()
 
         if action_button:
             header.addWidget(action_button)
@@ -42,7 +43,7 @@ class MaterialSection(MaterialCard):
 
         self.setLayout(layout)
 
-    # 🔑 Add this method
+    # # 🔑 Add this method
     def setTitle(self, title: str):
         if self.title_label:
             self.title_label.setText(title)

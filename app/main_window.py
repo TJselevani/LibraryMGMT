@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QScrollArea,
     QMessageBox,
+    QSizePolicy,
     QAction,
 )
 from PyQt5.QtGui import QPalette, QColor
@@ -67,7 +68,7 @@ class MainWindow(QMainWindow):
         self._setup_session_management()
 
         # Start with dashboard
-        self.navigate_to(ViewType.DASHBOARD)
+        self.navigate_to(ViewType.HOME)
 
     def _connect_events(self):
         """Connect event bus signals"""
@@ -217,19 +218,19 @@ class MainWindow(QMainWindow):
     def _build_view_layout(self, config: ViewConfig, view_type: ViewType, **kwargs):
         """Build standard view layout"""
         # Title and subtitle
-        title = self.ui_builder.create_title(config.title)
-        subtitle = self.ui_builder.create_subtitle(config.subtitle)
+        # title = self.ui_builder.create_title(config.title)
+        # subtitle = self.ui_builder.create_subtitle(config.subtitle)
 
-        self.content_layout.addWidget(title)
-        self.content_layout.addWidget(subtitle)
+        # self.content_layout.addWidget(title)
+        # self.content_layout.addWidget(subtitle)
 
-        # Action buttons
-        if config.requires_actions and config.action_buttons:
-            actions_layout, buttons = self.ui_builder.create_action_buttons(
-                config.action_buttons
-            )
-            self.content_layout.addLayout(actions_layout)
-            self._connect_action_buttons(buttons, view_type)
+        # # Action buttons
+        # if config.requires_actions and config.action_buttons:
+        #     actions_layout, buttons = self.ui_builder.create_action_buttons(
+        #         config.action_buttons
+        #     )
+        #     self.content_layout.addLayout(actions_layout)
+        #     self._connect_action_buttons(buttons, view_type)
 
         # Main view
         try:
@@ -245,64 +246,6 @@ class MainWindow(QMainWindow):
                 self.current_view_widget = view_widget
         except Exception as e:
             self._handle_error(f"Error creating view widget: {e}")
-
-    def _build_simple_view(self, view_type: ViewType, **kwargs):
-        """Build simple view without standard layout"""
-        if view_type == ViewType.DASHBOARD:
-            self._build_dashboard(**kwargs)
-        else:
-            self._handle_error(f"Unknown view type: {view_type}")
-
-    def _build_dashboard(self, **kwargs):
-        """Build dashboard view"""
-        title = self.ui_builder.create_title("Dashboard")
-        subtitle = self.ui_builder.create_subtitle(
-            "Welcome back! Here's what's happening in your library today."
-        )
-
-        self.content_layout.addWidget(title)
-        self.content_layout.addWidget(subtitle)
-
-        # Statistics cards
-        self._build_stats_cards()
-
-        # Attendance view
-        try:
-            from ui.screens.attendance_view import AttendanceView
-
-            attendance_view = AttendanceView(self.container.db_manager)
-            self.content_layout.addWidget(attendance_view)
-            self.current_view_widget = attendance_view
-        except Exception as e:
-            self._handle_error(f"Error creating attendance view: {e}")
-
-    def _build_stats_cards(self):
-        """Build statistics cards for dashboard"""
-        try:
-            from ui.widgets.cards.material_card import MaterialStatCard
-
-            stats_layout = QHBoxLayout()
-            stats_layout.setSpacing(20)
-
-            # Get statistics
-            patrons_count = len(self.container.get_controller("patrons").get_all())
-            # Add other statistics as needed
-
-            cards_data = [
-                ("Total Users", patrons_count, "👥", COLORS["primary"]),
-                ("Borrowed Books", 123, "📖", COLORS["success"]),
-                ("Overdue Books", 12, "⚠️", COLORS["warning"]),
-                ("New Members", 8, "✨", COLORS["secondary"]),
-            ]
-
-            for title, value, icon, color in cards_data:
-                card = MaterialStatCard(title, value, icon, color)
-                stats_layout.addWidget(card)
-
-            self.content_layout.addLayout(stats_layout)
-
-        except Exception as e:
-            self._handle_error(f"Error building stats cards: {e}")
 
     def _connect_action_buttons(self, buttons: list, view_type: ViewType):
         """Connect action buttons to their handlers"""
