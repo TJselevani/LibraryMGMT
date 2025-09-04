@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import (
     QHeaderView,
 )
 from utils.constants import COLORS
+from PyQt5.QtCore import Qt
 
 
 class MaterialTable(QTableWidget):
@@ -30,7 +31,7 @@ class MaterialTable(QTableWidget):
                 border: none;
                 border-bottom: 1px solid {COLORS['outline']};
             }}
-            
+
             QTableWidget::item:selected {{
                 background-color: {COLORS['primary_light']};
                 color: white;
@@ -39,7 +40,7 @@ class MaterialTable(QTableWidget):
             QTableWidget::item:hover {{
                 background-color: {COLORS['surface_variant']};
             }}
-            
+
             QHeaderView::section {{
                 background-color: {COLORS['surface']};
                 color: {COLORS['on_surface']};
@@ -50,29 +51,25 @@ class MaterialTable(QTableWidget):
                 padding: 16px;
                 text-align: left;
             }}
-            
+
             QHeaderView::section:horizontal {{
                 border-right: 1px solid {COLORS['outline']};
             }}
-            
-            QScrollBar:vertical {{
+           QScrollBar:vertical {{
                 background-color: {COLORS['surface_variant']};
                 width: 12px;
                 border-radius: 6px;
                 margin: 0;
             }}
-            
             QScrollBar::handle:vertical {{
                 background-color: {COLORS['primary']};
                 border-radius: 6px;
                 min-height: 30px;
                 margin: 2px;
             }}
-            
             QScrollBar::handle:vertical:hover {{
                 background-color: {COLORS['primary']};
             }}
-            
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0;
             }}
@@ -90,3 +87,13 @@ class MaterialTable(QTableWidget):
         self.horizontalHeader().setStretchLastSection(True)
         self.verticalHeader().setVisible(False)
         self.horizontalHeader().setSectionResizeMode(QHeaderView.Interactive)
+
+        header = self.horizontalHeader()
+        header.setDefaultAlignment(Qt.AlignVCenter)  # default for all
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
+        # Align each column's header explicitly
+        for col in range(self.columnCount()):
+            item = self.horizontalHeaderItem(col)
+            if item:
+                item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)

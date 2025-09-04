@@ -5,6 +5,7 @@ from controllers.books_controller import BooksController
 from controllers.borrowed_books_controller import BorrowedBooksController
 from controllers.payments_controller import PaymentController, PaymentItemController
 from controllers.auth_controller import AuthenticationService
+from controllers.attendance_controller import AttendanceController
 
 
 T = TypeVar("T")
@@ -70,6 +71,7 @@ class DependencyContainer:
             "payment_items": PaymentItemController(self.db_manager),
             "users": UsersController(self.db_manager),
             "auth": AuthenticationService(self.db_manager),
+            "attendance": AttendanceController(self.db_manager),
         }
 
     def get_controller(self, name: str):

@@ -9,7 +9,6 @@ from PyQt5.QtWidgets import (
     QHBoxLayout,
     QScrollArea,
     QMessageBox,
-    QSizePolicy,
     QAction,
 )
 from PyQt5.QtGui import QPalette, QColor

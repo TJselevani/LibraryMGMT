@@ -37,7 +37,7 @@ class ViewFactory:
         """Create dashboard view"""
         from ui.screens.home_view import HomeView
 
-        return HomeView()
+        return HomeView(container=self.container)
 
     def _create_dashboard_view(self, **kwargs) -> QWidget:
         """Create dashboard view"""

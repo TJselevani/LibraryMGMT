@@ -21,7 +21,6 @@ class MaterialCard(QFrame):
         self.setStyleSheet(
             f"""
             MaterialCard {{
-                background-color: {COLORS['surface']};
                 border-radius: 12px;
                 border: 1px solid {COLORS['outline']};
             }}
@@ -47,27 +46,30 @@ class MaterialStatCard(MaterialCard):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(8)
 
-        # Icon and value row
         top_row = QHBoxLayout()
 
         if icon:
             icon_label = QLabel(icon)
-            icon_label.setFont(QFont("Segoe UI", 24))
+            icon_label.setFont(QFont("Segoe UI Emoji", 24))
             icon_label.setStyleSheet(f"color: {color};")
+            icon_label.setGraphicsEffect(None)
             top_row.addWidget(icon_label)
 
         top_row.addStretch()
 
         value_label = QLabel(str(value))
-        value_label.setFont(QFont("Segoe UI", 32, QFont.Bold))
+        value_font = QFont("Segoe UI", 32, QFont.Bold)
+        value_font.setStyleStrategy(QFont.PreferAntialias)
+        value_label.setFont(value_font)
         value_label.setStyleSheet(f"color: {COLORS['on_surface']};")
         value_label.setAlignment(Qt.AlignRight)
+        value_label.setGraphicsEffect(None)
         top_row.addWidget(value_label)
 
-        # Title
         title_label = QLabel(title)
         title_label.setFont(QFont("Segoe UI", 12))
         title_label.setStyleSheet(f"color: {COLORS['on_surface_variant']};")
+        title_label.setGraphicsEffect(None)
 
         layout.addLayout(top_row)
         layout.addWidget(title_label)

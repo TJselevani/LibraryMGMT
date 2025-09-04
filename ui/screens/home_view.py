@@ -1,7 +1,4 @@
-import sys
-import random
 from PyQt5.QtWidgets import (
-    QApplication,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -9,9 +6,18 @@ from PyQt5.QtWidgets import (
     QFrame,
     QSizePolicy,
     QMessageBox,
+    QGraphicsDropShadowEffect,
+    QHeaderView,
+    QTableWidgetItem,
+    QPushButton,
 )
-from PyQt5.QtGui import QPalette, QColor, QPainter, QPen
+from PyQt5.QtGui import QColor
+from PyQt5.QtCore import Qt
 from config.ui_config import COLORS
+from core.container import DependencyContainer
+from datetime import date
+
+from ui.widgets.table.material_table import MaterialTable
 
 
 class MetricCard(QFrame):
@@ -19,27 +25,33 @@ class MetricCard(QFrame):
         super().__init__()
         self.setFrameStyle(QFrame.Box)
         self.setStyleSheet(
-            """
-            QFrame {
-                background-color: #1e1e1e;
-                border: 2px solid #333;
-                border-radius: 8px;
+            f"""
+            QFrame {{
+                background-color: {COLORS['surface']};
+                border-radius: 12px;
                 padding: 18px;
-            }
+            }}
         """
         )
+
+        # Add shadow effect
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(16)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 4)
+        self.setGraphicsEffect(shadow)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(15, 15, 15, 15)
 
         # Title
         title_label = QLabel(title)
-        title_label.setStyleSheet("color: #888; font-size: 12px; font-weight: normal;")
+        title_label.setStyleSheet("color: #888; font-size: 12px; font-weight: bold;")
 
         # Value
         value_label = QLabel(value)
         value_label.setStyleSheet(
-            "color: #fff; font-size: 24px; font-weight: bold; margin: 5px 0px;"
+            "color: gray; font-size: 16px; font-weight: bold; margin: 5px 0px; border: 2px solid gray;"
         )
 
         layout.addWidget(title_label)
@@ -48,16 +60,20 @@ class MetricCard(QFrame):
         # Subtitle if provided
         if subtitle:
             subtitle_label = QLabel(subtitle)
-            subtitle_label.setStyleSheet("color: #888; font-size: 11px;")
+            subtitle_label.setStyleSheet("color: #888; font-size: 16px;")
             layout.addWidget(subtitle_label)
 
         # Trend indicator if provided
         if trend:
             trend_label = QLabel(trend)
             if "+" in trend:
-                trend_label.setStyleSheet("color: #4ade80; font-size: 11px;")
+                trend_label.setStyleSheet(
+                    "color: #4ade80; font-size: 11px; border: 2px solid gray;"
+                )
             else:
-                trend_label.setStyleSheet("color: #f87171; font-size: 11px;")
+                trend_label.setStyleSheet(
+                    "color: #f87171; font-size: 11px; border: 2px solid gray;"
+                )
             layout.addWidget(trend_label)
 
         layout.addStretch()
@@ -70,14 +86,20 @@ class ChartWidget(QFrame):
         self.chart_type = chart_type
         self.setFrameStyle(QFrame.Box)
         self.setStyleSheet(
-            """
-            QFrame {
-                background-color: #1e1e1e;
-                border: 1px solid #333;
+            f"""
+            QFrame {{
+                background-color: {COLORS['surface']};
                 border-radius: 8px;
-            }
+            }}
         """
         )
+
+        # Add shadow effect
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(16)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 4)
+        self.setGraphicsEffect(shadow)
 
         layout = QVBoxLayout()
         layout.setContentsMargins(20, 20, 20, 20)
@@ -85,59 +107,169 @@ class ChartWidget(QFrame):
         # Title
         title_label = QLabel(title)
         title_label.setStyleSheet(
-            "color: #fff; font-size: 14px; font-weight: bold; margin-bottom: 15px;"
+            "color: gray; font-size: 14px; font-weight: bold; margin-bottom: 15px;"
         )
         layout.addWidget(title_label)
 
         # Chart area (placeholder)
         chart_area = QWidget()
         chart_area.setMinimumHeight(200)
-        chart_area.setStyleSheet("background-color: #111; border-radius: 4px;")
+        chart_area.setStyleSheet("background-color: transparent; border-radius: 4px;")
         layout.addWidget(chart_area)
 
         self.setLayout(layout)
 
-    def paintEvent(self, event):
-        super().paintEvent(event)
 
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+class TableWidget(QFrame):
+    def __init__(self, title, users=None, books=None, chart_type="line"):
+        super().__init__()
+        self.chart_type = chart_type
+        self.setFrameStyle(QFrame.Box)
+        self.setStyleSheet(
+            f"""
+            QFrame {{
+                background-color: {COLORS['surface']};
+                border-radius: 8px;
+            }}
+        """
+        )
 
-        # Draw simple chart visualization
-        rect = self.rect()
-        chart_rect = rect.adjusted(30, 60, -30, -30)
+        shadow = QGraphicsDropShadowEffect()
+        shadow.setBlurRadius(16)
+        shadow.setColor(QColor(0, 0, 0, 40))
+        shadow.setOffset(0, 4)
+        self.setGraphicsEffect(shadow)
 
-        if self.chart_type == "line":
-            # Draw line chart
-            painter.setPen(QPen(QColor("#3b82f6"), 2))
-            points = []
-            for i in range(10):
-                x = chart_rect.left() + (i * chart_rect.width() // 9)
-                y = chart_rect.bottom() - random.randint(20, chart_rect.height() - 40)
-                points.append((x, y))
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
 
-            for i in range(len(points) - 1):
-                painter.drawLine(
-                    points[i][0], points[i][1], points[i + 1][0], points[i + 1][1]
+        # Title
+        title_label = QLabel(title)
+        title_label.setStyleSheet(
+            "color: gray; font-size: 14px; font-weight: bold; margin-bottom: 15px;"
+        )
+        layout.addWidget(title_label)
+
+        if users:
+            layout.addWidget(self._create_users_table(users), stretch=1)
+        elif books:
+            layout.addWidget(self._create_books_table(books), stretch=1)
+        else:
+            chart_area = QWidget()
+            chart_area.setFixedHeight(300)
+            chart_area.setStyleSheet(
+                "background-color: transparent; border-radius: 4px;"
+            )
+            layout.addWidget(chart_area, stretch=1)
+
+    def _create_users_table(self, users):
+        """Creates a material-style table for patrons with action buttons."""
+        container = QWidget()
+        table_layout = QVBoxLayout(container)
+        table_layout.setContentsMargins(0, 0, 0, 0)
+        table_layout.setSpacing(0)
+
+        # Material styled table
+        self.table = MaterialTable()
+        self.table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.table.resizeRowsToContents()
+        self.table.setColumnCount(5)
+        headers = ["Patron ID", "Username", "Gender", "Level of Study", "Actions"]
+        self.table.setHorizontalHeaderLabels(headers)
+
+        # Style: no vertical borders, only bottom row border
+        self.table.setStyleSheet(
+            f"""
+            QTableWidget {{
+                background-color: {COLORS['surface']};
+                border: none;
+                gridline-color: {COLORS['outline']};
+                color: #fff;
+            }}
+            QHeaderView::section {{
+                background-color: transparent;
+                color: #111;
+                font-weight: bold;
+                border: none;
+                padding: 8px;
+                text-align: left;
+                alignment: left;
+            }}
+            QTableWidget::item {{
+                border-bottom: 1px solid {COLORS['outline']};
+                color: gray;
+                padding: 8px;
+                text-align: left;
+            }}
+            """
+        )
+
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(QHeaderView.Stretch)
+
+        # Load patrons
+        self.users_data = users
+        self.table.setRowCount(len(users))
+
+        for row, user in enumerate(users):
+            # Patron ID
+            self.table.setItem(row, 0, QTableWidgetItem(str(user.patron_id)))
+
+            # Username (First + Last)
+            username = f"{user.first_name} {user.last_name}"
+            self.table.setItem(row, 1, QTableWidgetItem(username))
+
+            # Gender
+            self.table.setItem(row, 2, QTableWidgetItem(user.gender or "N/A"))
+
+            # Level of Study
+            self.table.setItem(row, 3, QTableWidgetItem(user.grade_level or "N/A"))
+
+            # Action Buttons
+            action_widget = QWidget()
+            action_layout = QHBoxLayout(action_widget)
+            action_layout.setContentsMargins(0, 0, 0, 0)
+            action_layout.setSpacing(8)
+
+            btn_view = QPushButton("View")
+            btn_edit = QPushButton("Edit")
+            btn_delete = QPushButton("Delete")
+
+            for btn in (btn_view, btn_edit, btn_delete):
+                btn.setCursor(Qt.PointingHandCursor)
+                btn.setStyleSheet(
+                    """
+                    QPushButton {
+                        background-color: transparent;
+                        border: none;
+                        #color: #2196F3;
+                        font-weight: bold;
+                    }
+                    QPushButton:hover {
+                        text-decoration: underline;
+                    }
+                    """
                 )
 
-        elif self.chart_type == "bar":
-            # Draw bar chart
-            painter.setPen(QPen(QColor("#10b981"), 1))
-            painter.setBrush(QColor("#10b981"))
+            action_layout.addWidget(btn_view)
+            action_layout.addWidget(btn_edit)
+            action_layout.addWidget(btn_delete)
+            action_layout.addStretch()
 
-            bar_width = chart_rect.width() // 8
-            for i in range(6):
-                x = chart_rect.left() + (i * (bar_width + 10))
-                height = random.randint(20, chart_rect.height() - 40)
-                y = chart_rect.bottom() - height
-                painter.drawRect(x, y, bar_width, height)
+            # self.table.setCellWidget(row, 4, action_widget)
+
+        table_layout.addWidget(self.table)
+        return container
 
 
 class HomeView(QWidget):
-    def __init__(self):
+    def __init__(self, container: DependencyContainer):
         super().__init__()
+        self.attendance_date = date.today()
+        self.container = container
         self.initUI()
+
+        # Initialize controllers
 
     def initUI(self):
         # Main layout
@@ -263,20 +395,24 @@ class HomeView(QWidget):
     def _build_charts_cards(self):
         try:
 
+            users = self.container.get_controller("patrons").get_all()
+
             # Middle section - Charts
             charts_layout = QHBoxLayout()
             charts_layout.setSpacing(15)
 
             # Overview chart (larger)
-            overview_chart = ChartWidget("Overview", "line")
+            overview_chart = ChartWidget(title="List", chart_type="line")
             overview_chart.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
             # Recent sales (smaller)
-            sales_chart = ChartWidget("Recent Sales", "bar")
+            sales_chart = TableWidget(
+                title="Users List", users=users, books=None, chart_type="Bar"
+            )
             sales_chart.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-            charts_layout.addWidget(overview_chart, 2)
             charts_layout.addWidget(sales_chart, 1)
+            charts_layout.addWidget(overview_chart, 1)
             self.content_layout.addLayout(charts_layout)
         except Exception as e:
             self._handle_error(f"Error building stats cards: {e}")
@@ -287,7 +423,7 @@ class HomeView(QWidget):
             header_layout = QHBoxLayout()
 
             title = QLabel("Dashboard")
-            title.setStyleSheet("font-size: 24px; font-weight: bold; color: #fff;")
+            title.setStyleSheet("font-size: 24px; font-weight: bold; color: #111;")
 
             # User info
             user_info = QLabel("Welcome back, User")
@@ -335,14 +471,25 @@ class HomeView(QWidget):
             stats_layout.setSpacing(20)
 
             # Get statistics
-            # patrons_count = len(self.container.get_controller("patrons").get_all())
+            patrons_count = len(self.container.get_controller("patrons").get_all())
+            b_books_count = len(
+                self.container.get_controller("borrowed_books").get_all()
+            )
+            o_books_count = len(
+                self.container.get_controller("borrowed_books").get_overdue_books()
+            )
+            attendances = len(
+                self.container.get_controller("attendance").get_attendance_by_date(
+                    self.attendance_date
+                )
+            )
             # Add other statistics as needed
 
             cards_data = [
-                ("Total Users", 44, "👥", COLORS["primary"]),
-                ("Borrowed Books", 123, "📖", COLORS["success"]),
-                ("Overdue Books", 12, "⚠️", COLORS["warning"]),
-                ("New Members", 8, "✨", COLORS["secondary"]),
+                ("Total Users", patrons_count, "👥", COLORS["primary"]),
+                ("Borrowed Books", b_books_count, "📖", COLORS["success"]),
+                ("Overdue Books", o_books_count, "⚠️", COLORS["warning"]),
+                ("Attendance", attendances, "✨", COLORS["secondary"]),
             ]
 
             for title, value, icon, color in cards_data:
