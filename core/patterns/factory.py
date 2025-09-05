@@ -37,31 +37,31 @@ class ViewFactory:
         """Create dashboard view"""
         from ui.screens.home_view import HomeView
 
-        return HomeView(container=self.container)
+        return HomeView(self.container)
 
     def _create_dashboard_view(self, **kwargs) -> QWidget:
         """Create dashboard view"""
         from ui.screens.dashboard_view import DashboardView
 
-        return DashboardView(self.container.auth_service.db_manager)
+        return DashboardView(self.container)
 
     def _create_users_view(self, **kwargs) -> QWidget:
         """Create users view"""
         from ui.screens.attendance_view import AttendanceView
 
-        return AttendanceView(self.container.auth_service.db_manager)
+        return AttendanceView(self.container)
 
     def _create_composite_view(self, **kwargs) -> QWidget:
         """Create composite data view"""
         from ui.screens.composite_data_view import CompositeDataView
 
-        return CompositeDataView(self.container.auth_service.db_manager)
+        return CompositeDataView(self.container)
 
     def _create_library_data_view(self, **kwargs) -> QWidget:
         """Create library data view"""
         from ui.screens.data_view import LibraryDataView
 
-        return LibraryDataView(self.container.auth_service.db_manager)
+        return LibraryDataView(self.container)
 
 
 # =====================================================================

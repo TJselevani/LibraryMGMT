@@ -10,22 +10,13 @@ from PyQt5.QtGui import QColor
 from ui.widgets.table.material_table import MaterialTable
 from utils.constants import COLORS
 
-from controllers.patrons_controller import PatronsController
-from controllers.books_controller import BooksController
-from controllers.borrowed_books_controller import BorrowedBooksController
-from controllers.payments_controller import PaymentController
-from controllers.users_controller import UsersController
+from core.container import DependencyContainer
 
 
 class LibraryDataView(QWidget):
-    def __init__(self, db_manager):
+    def __init__(self, container: DependencyContainer):
         super().__init__()
-        self.db_manager = db_manager
-        self.patrons_controller = PatronsController(self.db_manager)
-        self.books_controller = BooksController(self.db_manager)
-        self.borrowed_books_controller = BorrowedBooksController(self.db_manager)
-        self.payment_controller = PaymentController(self.db_manager)
-        self.users_controller = UsersController(self.db_manager)
+        self.container = container
         self.setup_ui()
         self.load_all_data()
 
@@ -47,11 +38,11 @@ class LibraryDataView(QWidget):
             self.tables[name] = table
 
     def load_all_data(self):
-        users = self.users_controller.get_all()
-        patrons = self.patrons_controller.get_all()
-        payments = self.payment_controller.get_all()
-        books = self.books_controller.get_all()
-        borrowedBooks = self.borrowed_books_controller.get_all()
+        users = self.container.get_controller("users").get_all()
+        patrons = self.container.get_controller("patrons").get_all()
+        payments = self.container.get_controller("payments").get_all()
+        books = self.container.get_controller("books").get_all()
+        borrowedBooks = self.container.get_controller("borrowed_books").get_all()
 
         self.load_users(users)
         self.load_patrons(patrons)

@@ -8,7 +8,7 @@ class UsersController:
         self.db_manager = db_manager
 
     # ---------------- CREATE ----------------
-    def create(
+    def create_user(
         self,
         username,
         email,
@@ -36,6 +36,47 @@ class UsersController:
             except IntegrityError:
                 session.rollback()
                 raise ValueError("Username, email, or phone number already exists")
+
+    def create(self, data: dict):
+        """Create a new user from form data and save to DB"""
+        with self.db_manager.get_session() as session:
+            try:
+                role_value = data.get("role", UserRole.ASSISTANT)
+                # Convert role string to enum if needed
+                if isinstance(role_value, str):
+                    try:
+                        role_value = UserRole[role_value.upper()]
+                    except KeyError:
+                        role_value = UserRole.ASSISTANT
+
+                new_user = User(
+                    username=data.get("username"),
+                    email=data.get("email"),
+                    phone_number=data.get("phone_number"),
+                    full_name=data.get("full_name"),
+                    role=role_value,
+                    created_at=datetime.utcnow(),
+                )
+                new_user.set_password(data.get("password"))
+
+                session.add(new_user)
+                session.commit()
+
+                return {
+                    "success": True,
+                    "message": "User created successfully",
+                    "user": new_user,
+                }
+
+            except IntegrityError:
+                session.rollback()
+                return {
+                    "success": False,
+                    "message": "Username, email, or phone number already exists",
+                }
+            except Exception as e:
+                session.rollback()
+                return {"success": False, "message": str(e)}
 
     # ---------------- READ ----------------
     def get_by_id(self, user_id):

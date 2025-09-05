@@ -18,8 +18,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QFont
 from datetime import date
-from controllers.attendance_controller import AttendanceController
-from controllers.patrons_controller import PatronsController
+from core.container import DependencyContainer
 from utils.constants import COLORS
 
 
@@ -205,10 +204,9 @@ class PatronSearchWidget(QFrame):
 class DashboardView(QWidget):
     """Material Design styled Attendance view with patron search functionality"""
 
-    def __init__(self, db_manager):
+    def __init__(self, container: DependencyContainer):
         super().__init__()
-        self.controller = AttendanceController(db_manager)
-        self.patrons_controller = PatronsController(db_manager)
+        self.container = container
         self.attendance_date = date.today()
         self.all_patrons = []
         self.attended_patrons = []
@@ -565,7 +563,7 @@ class DashboardView(QWidget):
         """Load all data"""
         try:
             # Load all patrons
-            self.all_patrons = self.patrons_controller.get_all()
+            self.all_patrons = self.container.get_controller("patrons").get_all()
             self.patron_search.load_patrons(self.all_patrons)
 
             # Load today's attendance
@@ -580,7 +578,9 @@ class DashboardView(QWidget):
     def load_attendance(self):
         """Load attendance for today"""
         try:
-            attendances = self.controller.get_attendance_by_date(self.attendance_date)
+            attendances = self.container.get_controller(
+                "attendance"
+            ).get_attendance_by_date(self.attendance_date)
             self.attended_patrons = [att.patron for att in attendances]
 
             self.populate_table(attendances)
@@ -651,7 +651,7 @@ class DashboardView(QWidget):
                 return
 
             # Mark attendance
-            attendance = self.controller.mark_attendance(
+            attendance = self.container.get_controller("attendance").mark_attendance(
                 patron.user_id, self.attendance_date
             )
 
@@ -691,7 +691,9 @@ class DashboardView(QWidget):
         if reply == QMessageBox.Yes:
             try:
                 # Remove from database using the controller method
-                success = self.controller.remove_attendance(attendance_id)
+                success = self.container.get_controller("attendance").remove_attendance(
+                    attendance_id
+                )
 
                 if success:
                     # Reload attendance

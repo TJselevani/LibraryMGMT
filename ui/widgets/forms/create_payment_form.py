@@ -251,9 +251,9 @@ class AddPaymentForm(QWidget):
         patron_frame = self.create_patron_section()
         content_layout.addWidget(patron_frame)
 
-        # Column 2: Payment Item Selection
-        payment_item_frame = self.create_payment_item_section()
-        content_layout.addWidget(payment_item_frame)
+        # # Column 2: Payment Item Selection
+        # payment_item_frame = self.create_payment_item_section()
+        # content_layout.addWidget(payment_item_frame)
 
         # Column 3: Payment Details
         details_frame = self.create_payment_details_section()
@@ -315,6 +315,10 @@ class AddPaymentForm(QWidget):
         patron_layout.addWidget(self.membership_status)
 
         patron_layout.addStretch()
+        # Column 2: Payment Item Selection
+        payment_item_frame = self.create_payment_item_section()
+        patron_layout.addWidget(payment_item_frame)
+
         return patron_frame
 
     def create_payment_item_section(self):

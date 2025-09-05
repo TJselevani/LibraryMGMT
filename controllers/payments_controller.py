@@ -780,6 +780,16 @@ class PaymentItemController:
     def __init__(self, db_manager):
         self.db_manager = db_manager
 
+    def get_all(self):
+        """Get all payment items with their category prices"""
+        with self.db_manager.get_session() as session:
+            return (
+                session.query(PaymentItem)
+                .options(joinedload(PaymentItem.category_prices))
+                .order_by(PaymentItem.display_name)
+                .all()
+            )
+
     def get_all_active_items(self):
         """Get all active payment items with their category prices"""
         with self.db_manager.get_session() as session:

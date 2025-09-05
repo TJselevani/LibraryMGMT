@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from db.models import User, UserSession as Session
 
 
-class AuthenticationService:
+class AuthenticationController:
     def __init__(self, db_manager):
         self.db_manager = db_manager
         self.current_user = None

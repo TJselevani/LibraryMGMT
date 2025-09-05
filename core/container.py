@@ -4,8 +4,9 @@ from controllers.patrons_controller import PatronsController
 from controllers.books_controller import BooksController
 from controllers.borrowed_books_controller import BorrowedBooksController
 from controllers.payments_controller import PaymentController, PaymentItemController
-from controllers.auth_controller import AuthenticationService
+from controllers.auth_controller import AuthenticationController
 from controllers.attendance_controller import AttendanceController
+from controllers.book_categories_controller import BookCategoriesController
 
 
 T = TypeVar("T")
@@ -25,7 +26,9 @@ class DIContainer:
         self._services["users"] = lambda: UsersController(self.db_manager)
         self._services["patrons"] = lambda: PatronsController(self.db_manager)
         self._services["books"] = lambda: BooksController(self.db_manager)
-        self._services["b_books"] = lambda: BorrowedBooksController(self.db_manager)
+        self._services["borrowed_books"] = lambda: BorrowedBooksController(
+            self.db_manager
+        )
         self._services["payment"] = lambda: PaymentController(self.db_manager)
         self._services["payment_item"] = lambda: PaymentItemController(self.db_manager)
         # ... register other controllers
@@ -67,10 +70,11 @@ class DependencyContainer:
             "patrons": PatronsController(self.db_manager),
             "books": BooksController(self.db_manager),
             "borrowed_books": BorrowedBooksController(self.db_manager),
+            "book_categories": BookCategoriesController(self.db_manager),
             "payments": PaymentController(self.db_manager),
             "payment_items": PaymentItemController(self.db_manager),
             "users": UsersController(self.db_manager),
-            "auth": AuthenticationService(self.db_manager),
+            "auth": AuthenticationController(self.db_manager),
             "attendance": AttendanceController(self.db_manager),
         }
 

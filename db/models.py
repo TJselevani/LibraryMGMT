@@ -34,6 +34,12 @@ class Category(enum.Enum):
     ADULT = "adult"
 
 
+class Audience(enum.Enum):
+    CHILDREN = "children"
+    ADULT = "adult"
+    YOUNG_ADULT = "young_adult"
+
+
 class PaymentStatus(enum.Enum):
     PENDING = "pending"
     PARTIAL = "partial"
@@ -213,6 +219,7 @@ class Payment(Base):
 
     # Core payment fields
     amount_paid = Column(Float, nullable=False)  # Amount actually paid
+    # payment_type = Column(Text, nullable=True)
     total_amount_due = Column(Float, nullable=False)  # Total amount required
     payment_date = Column(Date, nullable=False)
     status = Column(Enum(PaymentStatus), nullable=False, default=PaymentStatus.PENDING)
@@ -360,11 +367,43 @@ class Book(Base):
     class_name = Column(String(100))
     accession_no = Column(String(20), unique=True, nullable=False)
     isbn = Column(String(20), unique=True, nullable=True)
+    # publication_year = Column(String(20), nullable=True)
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     borrowed_books = relationship(
         "BorrowedBook", back_populates="book", cascade="all, delete-orphan"
+    )
+
+    categories = relationship(
+        "BookCategory", secondary="book_category_associations", back_populates="books"
+    )
+
+
+class BookCategory(Base):
+    __tablename__ = "book_categories"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), unique=True, nullable=False)  # e.g., "Fiction"
+    audience = Column(Enum(Audience), nullable=False)  # Children / Adult / YA
+    color_code = Column(String(20), nullable=True)  # e.g., "#FF5733"
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    books = relationship(
+        "Book", secondary="book_category_associations", back_populates="categories"
+    )
+
+
+class BookCategoryAssociation(Base):
+    __tablename__ = "book_category_associations"
+
+    book_id = Column(
+        Integer, ForeignKey("books.book_id", ondelete="CASCADE"), primary_key=True
+    )
+    category_id = Column(
+        Integer, ForeignKey("book_categories.id", ondelete="CASCADE"), primary_key=True
     )
 
 

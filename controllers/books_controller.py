@@ -1,6 +1,7 @@
 # controllers/books_controller.py
 from sqlalchemy.exc import IntegrityError
 from db.models import Book, BorrowedBook
+from sqlalchemy.orm import joinedload
 
 
 class BooksController:
@@ -10,12 +11,22 @@ class BooksController:
     def get_all(self):
         """Get all books"""
         with self.db_manager.get_session() as session:
-            return session.query(Book).all()
+            return (
+                session.query(Book)
+                .options(joinedload(Book.categories))
+                .order_by(Book.title)
+                .all()
+            )
 
     def get_book_by_id(self, book_id):
         """Get book by book ID"""
         with self.db_manager.get_session() as session:
-            return session.query(Book).filter(Book.book_id == book_id).first()
+            return (
+                session.query(Book)
+                .options(joinedload(Book.categories))
+                .filter(Book.book_id == book_id)
+                .first()
+            )
 
     def get_book_by_accession_no(self, accession_no):
         """Get book by accession number"""

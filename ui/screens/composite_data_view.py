@@ -1,3 +1,5 @@
+# Enhanced composite_data_view.py with Payment Items and Book Categories
+
 import csv
 import json
 from PyQt5.QtWidgets import (
@@ -16,34 +18,23 @@ from PyQt5.QtGui import QFont, QColor
 from PyQt5.QtCore import pyqtSignal
 from datetime import datetime, date
 
-from controllers.patrons_controller import PatronsController
-from controllers.books_controller import BooksController
-from controllers.borrowed_books_controller import BorrowedBooksController
-from controllers.payments_controller import PaymentController
-from controllers.users_controller import UsersController
-
 from ui.widgets.table.material_table import MaterialTable
 from ui.widgets.TextField.material_line_edit import MaterialLineEdit
 from ui.widgets.combobox.material_combo_box import MaterialComboBox
 from ui.widgets.buttons.material_button import MaterialButton
 from ui.widgets.section.material_section import MaterialSection
 from utils.constants import COLORS
+from core.container import DependencyContainer
 
 
 class CompositeDataView(QWidget):
     # Signal to communicate with parent when add button is clicked
     add_requested = pyqtSignal(str)  # Emits the current view type
 
-    def __init__(self, db_manager):
+    def __init__(self, container: DependencyContainer):
         super().__init__()
-        self.db_manager = db_manager
-
         # Initialize controllers
-        self.patrons_controller = PatronsController(db_manager)
-        self.books_controller = BooksController(db_manager)
-        self.borrowed_books_controller = BorrowedBooksController(db_manager)
-        self.payment_controller = PaymentController(db_manager)
-        self.users_controller = UsersController(db_manager)
+        self.container = container
 
         # Current view state
         self.current_view = "Users"
@@ -132,6 +123,54 @@ class CompositeDataView(QWidget):
                 ],
                 "data_key": "payments_data",
             },
+            # NEW: Payment Items (Activities/Services)
+            "Activities": {
+                "title": "Services Management",
+                "subtitle": "Manage library services, activities, and their pricing.",
+                "headers": [
+                    "ID",
+                    "Service Name",
+                    "Type",
+                    "Base Price",
+                    "Category Based",
+                    "Installments",
+                    "Status",
+                    "Membership Duration",
+                ],
+                "filters": [
+                    "All Activities",
+                    "Active",
+                    "Inactive",
+                    "Membership Services",
+                    "One-time Services",
+                    "Installment Supported",
+                ],
+                "data_key": "payment_items_data",
+            },
+            # NEW: Book Categories
+            "Book Categories": {
+                "title": "Book Categories Management",
+                "subtitle": "Manage book categories, audiences, and color coding.",
+                "headers": [
+                    "ID",
+                    "Category Name",
+                    "Audience",
+                    "Color Codes",
+                    "Color Count",
+                    "Books Count",
+                    "Created Date",
+                ],
+                "filters": [
+                    "All Categories",
+                    "Children",
+                    "Adult",
+                    "Young Adult",
+                    "With Colors",
+                    "No Colors",
+                    "Multiple Colors",
+                ],
+                "data_key": "book_categories_data",
+            },
         }
 
         # Data storage
@@ -140,6 +179,8 @@ class CompositeDataView(QWidget):
         self.books_data = []
         self.borrowed_books_data = []
         self.payments_data = []
+        self.payment_items_data = []  # New
+        self.book_categories_data = []  # New
 
         self.setup_ui()
         self.load_all_data()
@@ -153,11 +194,17 @@ class CompositeDataView(QWidget):
         # Title + Navigation buttons (in one row)
         title_layout = QHBoxLayout()
 
-        self.title_label = QLabel("Library Data Management")
+        from ui.widgets.labels.elided_label import ElidedLabel
+
+        self.title_label = ElidedLabel("Library Data Management")
         self.title_label.setFont(QFont("Segoe UI", 32, QFont.Light))
         self.title_label.setStyleSheet(
             f"color: {COLORS['on_surface']}; margin-bottom: 8px;"
         )
+
+        # Set a fixed width (adjust as needed)
+        self.title_label.setFixedWidth(500)
+
         title_layout.addWidget(self.title_label)
         title_layout.addStretch()
 
@@ -192,7 +239,16 @@ class CompositeDataView(QWidget):
         """Create inline navigation buttons (styled like tabs)"""
 
         self.view_buttons = {}
-        view_names = ["Users", "Patrons", "Books", "Payments", "Borrowed Books"]
+        # Updated view names to include new views
+        view_names = [
+            "Users",
+            "Patrons",
+            "Books",
+            "Book Categories",
+            "Borrowed Books",
+            "Activities",
+            "Payments",
+        ]
 
         for view_name in view_names:
             btn = MaterialButton(view_name, button_type="text")
@@ -309,7 +365,13 @@ class CompositeDataView(QWidget):
         self.subtitle_label.setText(config["subtitle"])
 
         # Update add button text
-        self.add_btn.setText(f"Add New {self.current_view.rstrip('s')}")
+        view_singular = self.current_view.rstrip("s")
+        if self.current_view == "Activities":
+            view_singular = "Activity"
+        elif self.current_view == "Book Categories":
+            view_singular = "Category"
+
+        self.add_btn.setText(f"Add New {view_singular}")
 
         # Update search placeholder
         self.search_input.setPlaceholderText(f"Search {config['title'].lower()}...")
@@ -326,11 +388,30 @@ class CompositeDataView(QWidget):
 
     def load_all_data(self):
         """Load all data from controllers"""
-        self.users_data = self.users_controller.get_all()
-        self.patrons_data = self.patrons_controller.get_all()
-        self.books_data = self.books_controller.get_all()
-        self.borrowed_books_data = self.borrowed_books_controller.get_all()
-        self.payments_data = self.payment_controller.get_all()
+        self.users_data = self.container.get_controller("users").get_all()
+        self.patrons_data = self.container.get_controller("patrons").get_all()
+        self.books_data = self.container.get_controller("books").get_all()
+        self.borrowed_books_data = self.container.get_controller(
+            "borrowed_books"
+        ).get_all()
+        self.payments_data = self.container.get_controller("payments").get_all()
+
+        # Load new data
+        try:
+            # Load payment items (assuming you have a payment_items controller method)
+            self.payment_items_data = self.container.get_controller(
+                "payment_items"
+            ).get_all()
+        except (AttributeError, KeyError):
+            self.payment_items_data = []
+
+        try:
+            # Load book categories
+            self.book_categories_data = self.container.get_controller(
+                "book_categories"
+            ).get_all()
+        except (AttributeError, KeyError):
+            self.book_categories_data = []
 
     def get_current_data(self):
         """Get data for current view"""
@@ -356,10 +437,234 @@ class CompositeDataView(QWidget):
             self.populate_borrowed_books_table_enhanced(data)
         elif self.current_view == "Payments":
             self.populate_payments_table(data)
+        elif self.current_view == "Activities":  # NEW
+            self.populate_payment_items_table(data)
+        elif self.current_view == "Book Categories":  # NEW
+            self.populate_book_categories_table(data)
 
         # Set column resize modes
         self.set_column_resize_modes()
 
+    # NEW: Populate Payment Items Table
+    def populate_payment_items_table(self, payment_items):
+        """Populate payment items (activities/services) table"""
+        for row, item in enumerate(payment_items):
+            # ID
+            id_item = QTableWidgetItem(str(item.id))
+            id_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            id_item.setForeground(QColor(COLORS["primary"]))
+            self.table.setItem(row, 0, id_item)
+
+            # Service Name
+            self.table.setItem(row, 1, QTableWidgetItem(item.display_name or item.name))
+
+            # Type (Membership vs Regular Service)
+            service_type = (
+                "Membership" if getattr(item, "is_membership", False) else "Service"
+            )
+            type_item = QTableWidgetItem(service_type)
+            if service_type == "Membership":
+                type_item.setForeground(QColor(COLORS["secondary"]))
+                type_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            self.table.setItem(row, 2, type_item)
+
+            # Base Price
+            base_price = getattr(item, "base_amount", 0) or 0
+            price_text = (
+                f"KSh {base_price:.2f}"
+                if not getattr(item, "is_category_based", False)
+                else "Varies by Category"
+            )
+            self.table.setItem(row, 3, QTableWidgetItem(price_text))
+
+            # Category Based
+            category_based = (
+                "Yes" if getattr(item, "is_category_based", False) else "No"
+            )
+            self.table.setItem(row, 4, QTableWidgetItem(category_based))
+
+            # Installments
+            supports_installments = getattr(item, "supports_installments", False)
+            max_installments = getattr(item, "max_installments", 1) or 1
+            installment_text = (
+                f"Up to {max_installments}" if supports_installments else "No"
+            )
+            installment_item = QTableWidgetItem(installment_text)
+            if supports_installments:
+                installment_item.setForeground(QColor(COLORS["info"]))
+            self.table.setItem(row, 5, installment_item)
+
+            # Status (Active/Inactive)
+            is_active = getattr(item, "is_active", True)
+            status_item = QTableWidgetItem("Active" if is_active else "Inactive")
+            status_item.setForeground(
+                QColor(COLORS["success"] if is_active else COLORS["error"])
+            )
+            status_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            self.table.setItem(row, 6, status_item)
+
+            # Membership Duration (for membership items only)
+            duration_months = getattr(item, "membership_duration_months", 0) or 0
+            if getattr(item, "is_membership", False) and duration_months > 0:
+                duration_text = f"{duration_months} months"
+            else:
+                duration_text = "N/A"
+            self.table.setItem(row, 7, QTableWidgetItem(duration_text))
+
+    # NEW: Populate Book Categories Table
+    def populate_book_categories_table(self, categories):
+        """Populate book categories table with color coding"""
+        try:
+            # Get enhanced category data with color info
+            categories_controller = self.container.get_controller("book_categories")
+            enhanced_categories = categories_controller.get_categories_with_color_info()
+        except Exception:
+            # Fallback to basic data if enhanced method not available
+            enhanced_categories = []
+            for cat in categories:
+                enhanced_categories.append(
+                    {
+                        "id": cat.id,
+                        "name": cat.name,
+                        "audience": cat.audience,
+                        "color_code": getattr(cat, "color_code", None),
+                        "colors": self._parse_color_codes(
+                            getattr(cat, "color_code", None)
+                        ),
+                        "color_count": len(
+                            self._parse_color_codes(getattr(cat, "color_code", None))
+                        ),
+                        "created_at": getattr(cat, "created_at", None),
+                    }
+                )
+
+        for row, cat_data in enumerate(enhanced_categories):
+            # ID
+            id_item = QTableWidgetItem(str(cat_data["id"]))
+            id_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            id_item.setForeground(QColor(COLORS["primary"]))
+            self.table.setItem(row, 0, id_item)
+
+            # Category Name
+            name_item = QTableWidgetItem(cat_data["name"])
+            name_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            self.table.setItem(row, 1, name_item)
+
+            # Audience
+            audience = cat_data["audience"]
+            if hasattr(audience, "value"):
+                audience_text = audience.value.title()
+            else:
+                audience_text = str(audience).title()
+
+            audience_item = QTableWidgetItem(audience_text)
+            # Color code audience
+            if "children" in audience_text.lower():
+                audience_item.setForeground(QColor(COLORS.get("info", "#2196F3")))
+            elif "adult" in audience_text.lower():
+                audience_item.setForeground(QColor(COLORS.get("secondary", "#9C27B0")))
+            elif "young" in audience_text.lower():
+                audience_item.setForeground(QColor(COLORS.get("warning", "#FF9800")))
+
+            self.table.setItem(row, 2, audience_item)
+
+            # Color Codes with visual representation
+            colors = cat_data.get("colors", [])
+            if colors:
+                color_text = " / ".join(colors)
+                # Create a visual representation
+                color_display = f"● {color_text}"
+            else:
+                color_display = "No colors assigned"
+                color_text = ""
+
+            color_item = QTableWidgetItem(color_display)
+            if colors:
+                # Try to set color based on first color if it's a recognizable name
+                primary_color = colors[0].lower()
+                if primary_color in self.get_color_map():
+                    color_item.setForeground(
+                        QColor(self.get_color_map()[primary_color])
+                    )
+                else:
+                    color_item.setForeground(QColor(COLORS["on_surface"]))
+            else:
+                color_item.setForeground(QColor(COLORS["on_surface_variant"]))
+
+            self.table.setItem(row, 3, color_item)
+
+            # Color Count
+            color_count = cat_data.get("color_count", 0)
+            count_item = QTableWidgetItem(str(color_count))
+            if color_count > 1:
+                count_item.setForeground(QColor(COLORS.get("info", "#2196F3")))
+                count_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
+            elif color_count == 1:
+                count_item.setForeground(QColor(COLORS.get("success", "#4CAF50")))
+            else:
+                count_item.setForeground(QColor(COLORS["on_surface_variant"]))
+
+            self.table.setItem(row, 4, count_item)
+
+            # Books Count (placeholder - would need actual count from database)
+            # This would require a join query or separate method to count books per category
+            books_count = "0"  # Placeholder
+            self.table.setItem(row, 5, QTableWidgetItem(books_count))
+
+            # Created Date
+            created_at = cat_data.get("created_at")
+            if created_at:
+                if isinstance(created_at, datetime):
+                    date_text = created_at.strftime("%Y-%m-%d")
+                else:
+                    date_text = str(created_at)[:10]  # Take first 10 chars for date
+            else:
+                date_text = "N/A"
+
+            self.table.setItem(row, 6, QTableWidgetItem(date_text))
+
+    def get_color_map(self):
+        """Get mapping of color names to hex codes"""
+        return {
+            "red": "#F44336",
+            "green": "#4CAF50",
+            "blue": "#2196F3",
+            "orange": "#FF9800",
+            "purple": "#9C27B0",
+            "pink": "#E91E63",
+            "yellow": "#FFEB3B",
+            "brown": "#795548",
+            "black": "#212121",
+            "white": "#FFFFFF",
+            "gray": "#9E9E9E",
+            "grey": "#9E9E9E",
+            "lavender": "#E1BEE7",
+            "turquoise": "#26C6DA",
+            "cyan": "#00BCD4",
+            "magenta": "#E91E63",
+            "lime": "#CDDC39",
+            "maroon": "#8D6E63",
+            "navy": "#3F51B5",
+            "olive": "#689F38",
+            "silver": "#C0C0C0",
+            "teal": "#009688",
+            "gold": "#FFC107",
+            "coral": "#FF7043",
+            "violet": "#9C27B0",
+            "crimson": "#DC143C",
+        }
+
+    def _parse_color_codes(self, color_code):
+        """Helper method to parse color codes"""
+        if not color_code:
+            return []
+
+        import re
+
+        colors = re.split(r"[,/\s]+", color_code.strip())
+        return [color.strip() for color in colors if color.strip()]
+
+    # Keep all existing methods from the original file...
     def populate_users_table(self, users):
         """Populate users table"""
         for row, user in enumerate(users):
@@ -406,14 +711,16 @@ class CompositeDataView(QWidget):
 
             # Membership status with color coding
             membership = patron.membership_status or "Unknown"
-            membership_item = QTableWidgetItem(membership.value if membership else "")
+            membership_item = QTableWidgetItem(
+                membership.value if hasattr(membership, "value") else str(membership)
+            )
 
-            if membership == "active":
+            if str(membership).lower() == "active":
                 membership_item.setForeground(QColor(COLORS["success"]))
                 membership_item.setFont(QFont("Segoe UI", 10, QFont.Bold))
-            elif membership == "inactive":
+            elif str(membership).lower() == "inactive":
                 membership_item.setForeground(QColor(COLORS["error"]))
-            elif membership == "pending":
+            elif str(membership).lower() == "pending":
                 membership_item.setForeground(QColor(COLORS["warning"]))
             else:
                 membership_item.setForeground(QColor(COLORS["on_surface_variant"]))
@@ -430,22 +737,22 @@ class CompositeDataView(QWidget):
             self.table.setItem(
                 row, 4, QTableWidgetItem(getattr(book, "isbn", "") or "")
             )
-            self.table.setItem(
-                row, 5, QTableWidgetItem(getattr(book, "category", "") or "")
-            )
+
+            # Get categories for this book
+            categories_text = ""
+            if hasattr(book, "categories") and book.categories:
+                categories_text = ", ".join([cat.name for cat in book.categories])
+
+            self.table.setItem(row, 5, QTableWidgetItem(categories_text))
 
             # Status with color coding
-            status = getattr(book, "status", "Available") or "Available"
+            status = "Available" if getattr(book, "is_available", True) else "Borrowed"
             status_item = QTableWidgetItem(status)
 
             if status.lower() == "available":
                 status_item.setForeground(QColor(COLORS["success"]))
-            elif status.lower() == "borrowed":
-                status_item.setForeground(QColor(COLORS["warning"]))
-            elif status.lower() == "reserved":
-                status_item.setForeground(QColor(COLORS["primary"]))
             else:
-                status_item.setForeground(QColor(COLORS["error"]))
+                status_item.setForeground(QColor(COLORS["warning"]))
 
             self.table.setItem(row, 6, status_item)
             self.table.setItem(
@@ -460,17 +767,21 @@ class CompositeDataView(QWidget):
             self.table.setItem(
                 row,
                 1,
-                QTableWidgetItem(str(payment.patron.patron_id)),
+                QTableWidgetItem(
+                    str(payment.patron.patron_id) if payment.patron else ""
+                ),
             )
             self.table.setItem(
                 row,
                 2,
                 QTableWidgetItem(
-                    str(payment.patron.first_name + " " + payment.patron.last_name)
+                    f"{payment.patron.first_name} {payment.patron.last_name}"
+                    if payment.patron
+                    else ""
                 ),
             )
 
-            # Ensure payment_type is displayed as string
+            # Payment type
             payment_type = (
                 payment.payment_item.display_name.lower()
                 if payment.payment_item and payment.payment_item.display_name
@@ -480,7 +791,7 @@ class CompositeDataView(QWidget):
 
             # Amount with currency formatting
             amount_text = (
-                f"${payment.amount_paid:.2f}" if payment.amount_paid else "N/A"
+                f"KSh {payment.amount_paid:.2f}" if payment.amount_paid else "N/A"
             )
             self.table.setItem(row, 4, QTableWidgetItem(amount_text))
 
@@ -489,9 +800,7 @@ class CompositeDataView(QWidget):
             )
 
             # Status with color coding
-            # Ensure the payment status is updated correctly
             payment.update_status()
-
             status = (
                 payment.status.value
                 if hasattr(payment.status, "value")
@@ -510,102 +819,6 @@ class CompositeDataView(QWidget):
 
             self.table.setItem(row, 6, status_item)
 
-    def populate_borrowed_books_table(self, borrowed_books):
-        """Populate borrowed books table with proper date formatting and status"""
-        for row, bb in enumerate(borrowed_books):
-            try:
-                # Basic IDs
-                self.table.setItem(row, 0, QTableWidgetItem(str(bb.borrow_id)))
-                self.table.setItem(row, 1, QTableWidgetItem(str(bb.user_id)))
-                self.table.setItem(row, 2, QTableWidgetItem(str(bb.book_id)))
-
-                # Book title - get from relationship or fallback
-                book_title = ""
-                if hasattr(bb, "book") and bb.book:
-                    book_title = bb.book.title
-                elif hasattr(bb, "book_title"):
-                    book_title = bb.book_title
-                self.table.setItem(row, 3, QTableWidgetItem(book_title))
-
-                # Format dates properly
-                borrow_date_str = ""
-                if bb.borrow_date:
-                    if isinstance(bb.borrow_date, date):
-                        borrow_date_str = bb.borrow_date.strftime("%Y-%m-%d")
-                    else:
-                        borrow_date_str = str(bb.borrow_date)
-                self.table.setItem(row, 4, QTableWidgetItem(borrow_date_str))
-
-                due_date_str = ""
-                if bb.due_date:
-                    if isinstance(bb.due_date, date):
-                        due_date_str = bb.due_date.strftime("%Y-%m-%d")
-                    else:
-                        due_date_str = str(bb.due_date)
-                self.table.setItem(row, 5, QTableWidgetItem(due_date_str))
-
-                # Return date
-                return_date_str = ""
-                if bb.return_date:
-                    if isinstance(bb.return_date, date):
-                        return_date_str = bb.return_date.strftime("%Y-%m-%d")
-                    else:
-                        return_date_str = str(bb.return_date)
-                self.table.setItem(row, 6, QTableWidgetItem(return_date_str))
-
-                # Determine status with proper logic
-                status, color = self._determine_book_status(bb)
-
-                status_item = QTableWidgetItem(status)
-                status_item.setForeground(QColor(color))
-                self.table.setItem(row, 7, status_item)
-
-            except Exception as e:
-                print(f"Error populating row {row}: {e}")
-                # Fill with empty values if there's an error
-                for col in range(8):
-                    if self.table.item(row, col) is None:
-                        self.table.setItem(row, col, QTableWidgetItem(""))
-
-    def _determine_book_status(self, borrowed_book):
-        """Determine the status and color for a borrowed book"""
-        try:
-            if borrowed_book.returned:
-                return "Returned", COLORS["success"]
-
-            # Check if overdue
-            if borrowed_book.due_date:
-                today = date.today()
-
-                # Handle different date formats
-                due_date = borrowed_book.due_date
-                if isinstance(due_date, str):
-                    try:
-                        due_date = datetime.strptime(due_date, "%Y-%m-%d").date()
-                    except ValueError:
-                        # If string parsing fails, assume it's not overdue
-                        return "Active", COLORS["warning"]
-
-                if due_date < today:
-                    days_overdue = (today - due_date).days
-                    return f"Overdue ({days_overdue} days)", COLORS["error"]
-                elif due_date == today:
-                    return "Due Today", COLORS["warning"]
-                else:
-                    # Calculate days remaining
-                    days_remaining = (due_date - today).days
-                    if days_remaining <= 3:
-                        return f"Due Soon ({days_remaining} days)", COLORS["warning"]
-                    else:
-                        return "Active", COLORS["info"]
-            else:
-                return "Active", COLORS["info"]
-
-        except Exception as e:
-            print(f"Error determining status: {e}")
-            return "Unknown", COLORS["text"]
-
-    # Alternative method with enhanced status information
     def populate_borrowed_books_table_enhanced(self, borrowed_books):
         """Enhanced version with more detailed information"""
         for row, bb in enumerate(borrowed_books):
@@ -613,20 +826,13 @@ class CompositeDataView(QWidget):
                 # Basic information
                 self.table.setItem(row, 0, QTableWidgetItem(str(bb.borrow_id)))
                 self.table.setItem(row, 1, QTableWidgetItem(str(bb.user_id)))
-
-                # Patron name if available
-                patron_name = ""
-                if hasattr(bb, "patron") and bb.patron:
-                    patron_name = f"{bb.patron.first_name} {bb.patron.last_name}"
-                self.table.setItem(row, 2, QTableWidgetItem(patron_name))
-
-                self.table.setItem(row, 3, QTableWidgetItem(str(bb.book_id)))
+                self.table.setItem(row, 2, QTableWidgetItem(str(bb.book_id)))
 
                 # Book details
                 book_info = ""
                 if hasattr(bb, "book") and bb.book:
                     book_info = f"{bb.book.title} - {bb.book.author}"
-                self.table.setItem(row, 4, QTableWidgetItem(book_info))
+                self.table.setItem(row, 3, QTableWidgetItem(book_info))
 
                 # Dates with proper formatting
                 borrow_date = self._format_date(bb.borrow_date)
@@ -635,19 +841,15 @@ class CompositeDataView(QWidget):
                     self._format_date(bb.return_date) if bb.return_date else ""
                 )
 
-                self.table.setItem(row, 5, QTableWidgetItem(borrow_date))
-                self.table.setItem(row, 6, QTableWidgetItem(due_date))
-                self.table.setItem(row, 7, QTableWidgetItem(return_date))
+                self.table.setItem(row, 4, QTableWidgetItem(borrow_date))
+                self.table.setItem(row, 5, QTableWidgetItem(due_date))
+                self.table.setItem(row, 6, QTableWidgetItem(return_date))
 
-                # Status and fine information
+                # Status
                 status, color = self._determine_book_status_enhanced(bb)
                 status_item = QTableWidgetItem(status)
                 status_item.setForeground(QColor(color))
-                self.table.setItem(row, 8, status_item)
-
-                # Fine amount
-                fine_amount = f"KSh {bb.fine_amount:.2f}" if bb.fine_amount > 0 else ""
-                self.table.setItem(row, 9, QTableWidgetItem(fine_amount))
+                self.table.setItem(row, 7, status_item)
 
             except Exception as e:
                 print(f"Error populating enhanced row {row}: {e}")
@@ -659,7 +861,6 @@ class CompositeDataView(QWidget):
 
         try:
             if isinstance(date_obj, str):
-                # Try to parse string date
                 parsed_date = datetime.strptime(date_obj, "%Y-%m-%d").date()
                 return parsed_date.strftime("%Y-%m-%d")
             elif isinstance(date_obj, (date, datetime)):
@@ -676,7 +877,7 @@ class CompositeDataView(QWidget):
         """Enhanced status determination with more details"""
         try:
             if borrowed_book.returned:
-                if borrowed_book.fine_amount > 0:
+                if getattr(borrowed_book, "fine_amount", 0) > 0:
                     return (
                         f"Returned (Fine: KSh {borrowed_book.fine_amount:.2f})",
                         COLORS["success"],
@@ -756,6 +957,27 @@ class CompositeDataView(QWidget):
             header.setSectionResizeMode(6, QHeaderView.ResizeToContents)  # Status
             header.setSectionResizeMode(7, QHeaderView.ResizeToContents)  # Location
 
+        elif self.current_view == "Activities":  # NEW
+            header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # ID
+            header.setSectionResizeMode(1, QHeaderView.Stretch)  # Service Name
+            header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Type
+            header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Base Price
+            header.setSectionResizeMode(
+                4, QHeaderView.ResizeToContents
+            )  # Category Based
+            header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # Installments
+            header.setSectionResizeMode(6, QHeaderView.ResizeToContents)  # Status
+            header.setSectionResizeMode(7, QHeaderView.ResizeToContents)  # Duration
+
+        elif self.current_view == "Book Categories":  # NEW
+            header.setSectionResizeMode(0, QHeaderView.ResizeToContents)  # ID
+            header.setSectionResizeMode(1, QHeaderView.Stretch)  # Category Name
+            header.setSectionResizeMode(2, QHeaderView.ResizeToContents)  # Audience
+            header.setSectionResizeMode(3, QHeaderView.ResizeToContents)  # Color Codes
+            header.setSectionResizeMode(4, QHeaderView.ResizeToContents)  # Color Count
+            header.setSectionResizeMode(5, QHeaderView.ResizeToContents)  # Books Count
+            header.setSectionResizeMode(6, QHeaderView.ResizeToContents)  # Created Date
+
         else:
             # Default: stretch all columns
             header.setSectionResizeMode(QHeaderView.Stretch)
@@ -801,9 +1023,11 @@ class CompositeDataView(QWidget):
         elif self.current_view == "Borrowed Books":
             searchable = f"{item.borrow_id} {item.user_id} {item.book_id}".lower()
         elif self.current_view == "Payments":
-            searchable = (
-                f"{item.payment_id} {item.user_id} {item.payment_type or ''}".lower()
-            )
+            searchable = f"{item.payment_id} {item.user_id}".lower()
+        elif self.current_view == "Activities":  # NEW
+            searchable = f"{item.name} {item.display_name} {getattr(item, 'description', '')}".lower()
+        elif self.current_view == "Book Categories":  # NEW
+            searchable = f"{item.name} {item.audience}".lower()
         else:
             return True
 
@@ -822,7 +1046,11 @@ class CompositeDataView(QWidget):
                 return str(item.role).lower() == "staff"
 
         elif self.current_view == "Patrons":
-            membership = item.membership_status.value or ""
+            membership = (
+                getattr(item.membership_status, "value", str(item.membership_status))
+                if item.membership_status
+                else ""
+            )
             if filter_type == "Active":
                 return membership == "active"
             elif filter_type == "Inactive":
@@ -833,15 +1061,11 @@ class CompositeDataView(QWidget):
                 return bool(item.institution)
 
         elif self.current_view == "Books":
-            status = getattr(item, "status", "available").lower()
+            status = "available" if getattr(item, "is_available", True) else "borrowed"
             if filter_type == "Available":
                 return status == "available"
             elif filter_type == "Borrowed":
                 return status == "borrowed"
-            elif filter_type == "Reserved":
-                return status == "reserved"
-            elif filter_type == "Damaged":
-                return status == "damaged"
 
         elif self.current_view == "Borrowed Books":
             if filter_type == "Active":
@@ -849,26 +1073,57 @@ class CompositeDataView(QWidget):
             elif filter_type == "Returned":
                 return item.returned
             elif filter_type == "Overdue":
-                # Simplified overdue check - implement proper date logic
                 return not item.returned and hasattr(item, "due_date")
 
         elif self.current_view == "Payments":
-            payment_type = (
-                item.payment_item.name.lower()
-                if item.payment_item.name and item.payment_item.name
-                else "unknown"
-            )
-
             if filter_type == "Membership":
-                return "membership" in payment_type
+                return (
+                    getattr(item.payment_item, "is_membership", False)
+                    if item.payment_item
+                    else False
+                )
             elif filter_type == "Penalties":
-                return "penalty" in payment_type or "fine" in payment_type
+                return (
+                    "penalty" in str(getattr(item.payment_item, "name", "")).lower()
+                    or "fine" in str(getattr(item.payment_item, "name", "")).lower()
+                )
             elif filter_type == "Recent":
-                # TODO: implement date-based filtering for recent
-                return True
+                return True  # Implement date-based filtering
             elif filter_type == "Pending":
                 status = str(getattr(item, "status", "")).lower()
                 return status == "pending"
+
+        elif self.current_view == "Activities":  # NEW
+            if filter_type == "Active":
+                return getattr(item, "is_active", True)
+            elif filter_type == "Inactive":
+                return not getattr(item, "is_active", True)
+            elif filter_type == "Membership Services":
+                return getattr(item, "is_membership", False)
+            elif filter_type == "One-time Services":
+                return not getattr(item, "is_membership", False)
+            elif filter_type == "Installment Supported":
+                return getattr(item, "supports_installments", False)
+
+        elif self.current_view == "Book Categories":  # NEW
+            audience_str = str(getattr(item, "audience", "")).lower()
+            color_code = getattr(item, "color_code", None)
+
+            if filter_type == "Children":
+                return "children" in audience_str
+            elif filter_type == "Adult":
+                return "adult" in audience_str and "young" not in audience_str
+            elif filter_type == "Young Adult":
+                return "young" in audience_str
+            elif filter_type == "With Colors":
+                return bool(color_code and color_code.strip())
+            elif filter_type == "No Colors":
+                return not (color_code and color_code.strip())
+            elif filter_type == "Multiple Colors":
+                if not color_code:
+                    return False
+                colors = self._parse_color_codes(color_code)
+                return len(colors) > 1
 
         return True
 
@@ -887,9 +1142,13 @@ class CompositeDataView(QWidget):
         elif self.current_view == "Books":
             self.populate_books_table(data)
         elif self.current_view == "Borrowed Books":
-            self.populate_borrowed_books_table(data)
+            self.populate_borrowed_books_table_enhanced(data)
         elif self.current_view == "Payments":
             self.populate_payments_table(data)
+        elif self.current_view == "Activities":
+            self.populate_payment_items_table(data)
+        elif self.current_view == "Book Categories":
+            self.populate_book_categories_table(data)
 
         self.set_column_resize_modes()
 
@@ -907,6 +1166,7 @@ class CompositeDataView(QWidget):
         current_data = self.get_current_data()
         return [current_data[row] for row in selected_rows if row < len(current_data)]
 
+    # Import/Export methods would need to be extended for new views...
     def import_data(self):
         """Import data based on current view"""
         file_path, _ = QFileDialog.getOpenFileName(
@@ -979,6 +1239,10 @@ class CompositeDataView(QWidget):
                 self.import_books_csv(reader)
             elif self.current_view == "Payments":
                 self.import_payments_csv(reader)
+            elif self.current_view == "Activities":
+                self.import_activities_csv(reader)
+            elif self.current_view == "Book Categories":
+                self.import_categories_csv(reader)
 
     def import_json(self, file_path):
         """Import data from JSON file"""
@@ -993,6 +1257,10 @@ class CompositeDataView(QWidget):
                 self.import_books_json(data)
             elif self.current_view == "Payments":
                 self.import_payments_json(data)
+            elif self.current_view == "Activities":
+                self.import_activities_json(data)
+            elif self.current_view == "Book Categories":
+                self.import_categories_json(data)
 
     def export_csv(self, file_path, data):
         """Export data to CSV file"""
