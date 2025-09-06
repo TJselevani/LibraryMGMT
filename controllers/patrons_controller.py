@@ -3,7 +3,7 @@ import string
 from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import joinedload
-from db.models import Patron, Payment, BorrowedBook
+from db.models import MembershipStatus, Patron, Payment, BorrowedBook
 
 
 class PatronsController:
@@ -208,11 +208,27 @@ class PatronsController:
 
     def activate_patron(self, user_id):
         """Activate a patron's membership"""
-        return self.update_patron(user_id, {"membership_status": "active"})
+        return self.update_patron(
+            user_id, {"membership_status": MembershipStatus.ACTIVE}
+        )
 
     def deactivate_patron(self, user_id):
         """Deactivate a patron's membership"""
-        return self.update_patron(user_id, {"membership_status": "inactive"})
+        return self.update_patron(
+            user_id, {"membership_status": MembershipStatus.INACTIVE}
+        )
+
+    def suspend_patron(self, user_id):
+        """Suspend a patron's membership"""
+        return self.update_patron(
+            user_id, {"membership_status": MembershipStatus.SUSPENDED}
+        )
+
+    def expire_patron(self, user_id):
+        """Expire a patron's membership"""
+        return self.update_patron(
+            user_id, {"membership_status": MembershipStatus.EXPIRED}
+        )
 
     def get_patron_statistics(self):
         """Get patron statistics"""
@@ -220,12 +236,12 @@ class PatronsController:
             total_patrons = session.query(Patron).count()
             active_patrons = (
                 session.query(Patron)
-                .filter(Patron.membership_status == "active")
+                .filter(Patron.membership_status == MembershipStatus.ACTIVE)
                 .count()
             )
             inactive_patrons = (
                 session.query(Patron)
-                .filter(Patron.membership_status == "inactive")
+                .filter(Patron.membership_status == MembershipStatus.INACTIVE)
                 .count()
             )
 

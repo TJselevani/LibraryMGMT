@@ -1,9 +1,9 @@
 # seed_data.py – Populate library_system with dummy data
 
 from datetime import date, timedelta
+import random
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import random
 
 from db.database import Base
 from db.models import (
@@ -16,6 +16,7 @@ from db.models import (
     BorrowedBook,
     Payment,
     PaymentStatus,
+    PaymentItem,
     PaymentService,
 )
 
@@ -153,32 +154,6 @@ def seed_books(session):
 def seed_payments_and_memberships(session):
     """Seed payments for patrons (link to memberships)"""
     patrons = session.query(Patron).all()
-    membership_item = session.query(
-        # Grab the annual membership item
-        session.query(PaymentService).session.query
-    )
-    membership_item = session.query(PaymentService).first()
-
-    membership_item = session.query(PaymentService).first()
-
-    membership_item = session.query(PaymentService).first()
-
-    membership_item = session.query(PaymentService).first()
-
-    membership_item = session.query(PaymentService).first()
-
-    membership_item = session.query(PaymentService).first()
-
-    membership_item = session.query(PaymentService).first()
-
-    membership_item = session.query(PaymentService).first()
-
-    membership_item = session.query(PaymentService).first()
-
-    # membership_item = session.query(PaymentItem).filter_by(name="membership").first()
-
-    from db.models import PaymentItem  # avoid circular import
-
     membership_item = session.query(PaymentItem).filter_by(name="membership").first()
 
     if not membership_item:

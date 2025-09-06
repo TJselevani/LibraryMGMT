@@ -27,8 +27,8 @@ class MyDatabaseManager:
             admin_exists = session.query(User).filter_by(role=UserRole.ADMIN).first()
             if not admin_exists:
                 admin_user = User(
-                    username="admin",
-                    email="admin@library.system",
+                    username="tj",
+                    email="tj@library.system",
                     phone_number="0723452345",
                     full_name="System Administrator",
                     role=UserRole.ADMIN,

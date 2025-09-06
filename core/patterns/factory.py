@@ -25,6 +25,7 @@ class ViewFactory:
             ViewType.ALL_TABLES: self._create_composite_view,
             ViewType.LIBRARY_DATA: self._create_library_data_view,
             ViewType.USERS: self._create_users_view,
+            ViewType.PATRON_DETAIL: self._create_patrons_data_view,
         }
 
     def create_view(self, view_type: ViewType, **kwargs) -> QWidget:
@@ -73,6 +74,15 @@ class ViewFactory:
         from ui.screens.data_view import LibraryDataView
 
         return LibraryDataView(self.container)
+
+    def _create_patrons_data_view(self, **kwargs) -> QWidget:
+        """Create library data view"""
+        patron = kwargs.get("patron")
+        if patron:
+            from ui.details_page.patron_details import PatronProfilePage
+
+            patron_controller = self.container.get_controller("patrons")
+            return PatronProfilePage(patron_controller, patron)
 
 
 # =====================================================================

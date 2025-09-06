@@ -54,6 +54,128 @@ class MembershipStatus(enum.Enum):
     SUSPENDED = "suspended"  # if you also want suspended
 
 
+class PaymentType(enum.Enum):
+    CASH = "cash"
+    PAYBILL = "paybill"
+    MPESA = "mpesa"
+
+
+class User(Base):
+    __tablename__ = "Users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False)
+    email = Column(String(100), unique=True, nullable=False)
+    phone_number = Column(String(100), unique=True, nullable=False)
+    password_hash = Column(String(128), nullable=False)
+    salt = Column(String(32), nullable=False)
+    role = Column(Enum(UserRole), nullable=False, default=UserRole.ASSISTANT)
+    full_name = Column(String(100), nullable=False)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login = Column(DateTime, nullable=True)
+    login_attempts = Column(Integer, default=0)
+    locked_until = Column(DateTime, nullable=True)
+
+    sessions = relationship(
+        "UserSession", back_populates="user", cascade="all, delete-orphan"
+    )
+
+    def set_password(self, password):
+        """Hash and set password with salt"""
+        self.salt = secrets.token_hex(16)
+        password_salt = password + self.salt
+        self.password_hash = hashlib.sha256(password_salt.encode()).hexdigest()
+
+    def verify_password(self, password):
+        """Verify password against stored hash"""
+        password_salt = password + self.salt
+        return hashlib.sha256(password_salt.encode()).hexdigest() == self.password_hash
+
+
+class UserSession(Base):
+    __tablename__ = "user_sessions"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(
+        Integer, ForeignKey("Users.id", ondelete="CASCADE"), nullable=False
+    )
+    session_token = Column(String(64), unique=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, default=True)
+
+    user = relationship("User", back_populates="sessions")
+
+
+class Patron(Base):
+    __tablename__ = "patrons"
+
+    user_id = Column(Integer, primary_key=True)
+    patron_id = Column(String(5), unique=True, nullable=False)
+    first_name = Column(String(100), nullable=False)
+    last_name = Column(String(100), nullable=False)
+    institution = Column(String(200))
+    grade_level = Column(String(50))
+    category = Column(Enum(Category), nullable=False)
+    age = Column(Integer)
+    gender = Column(String(10))
+    date_of_birth = Column(Date)
+    residence = Column(String(200))
+    phone_number = Column(String(20))
+
+    # Enhanced membership tracking
+    membership_status = Column(
+        Enum(MembershipStatus), default=MembershipStatus.INACTIVE
+    )
+    membership_start_date = Column(Date, nullable=True)
+    membership_expiry_date = Column(Date, nullable=True)
+    membership_type = Column(String(100), nullable=True)  # Store payment item name
+
+    payments = relationship(
+        "Payment", back_populates="patron", cascade="all, delete-orphan"
+    )
+    borrowed_books = relationship(
+        "BorrowedBook", back_populates="patron", cascade="all, delete-orphan"
+    )
+
+    @validates("category")
+    def validate_category(self, key, category):
+        if isinstance(category, str):
+            try:
+                return Category(category.lower())
+            except ValueError:
+                raise ValueError(f"Invalid category: {category}")
+        return category
+
+    def is_membership_active(self):
+        """Check if membership is currently active and not expired"""
+        if not self.membership_expiry_date:
+            return False
+        return (
+            self.membership_status == MembershipStatus.ACTIVE
+            and self.membership_expiry_date >= date.today()
+        )
+
+    def get_membership_days_remaining(self):
+        """Get days remaining on membership"""
+        if not self.membership_expiry_date:
+            return 0
+        remaining = (self.membership_expiry_date - date.today()).days
+        return max(0, remaining)
+
+    def expire_membership_if_needed(self):
+        """Update membership status if expired"""
+        if (
+            self.membership_expiry_date
+            and self.membership_expiry_date < date.today()
+            and self.membership_status == MembershipStatus.ACTIVE
+        ):
+            self.membership_status = MembershipStatus.EXPIRED
+            return True
+        return False
+
+
 # Enhanced PaymentItem with membership duration
 class PaymentItem(Base):
     """
@@ -136,75 +258,6 @@ class PaymentItemPrice(Base):
     )
 
 
-# Enhanced Patron with membership expiry tracking
-class Patron(Base):
-    __tablename__ = "patrons"
-
-    user_id = Column(Integer, primary_key=True)
-    patron_id = Column(String(5), unique=True, nullable=False)
-    first_name = Column(String(100), nullable=False)
-    last_name = Column(String(100), nullable=False)
-    institution = Column(String(200))
-    grade_level = Column(String(50))
-    category = Column(Enum(Category), nullable=False)
-    age = Column(Integer)
-    gender = Column(String(10))
-    date_of_birth = Column(Date)
-    residence = Column(String(200))
-    phone_number = Column(String(20))
-
-    # Enhanced membership tracking
-    membership_status = Column(
-        Enum(MembershipStatus), default=MembershipStatus.INACTIVE
-    )
-    membership_start_date = Column(Date, nullable=True)
-    membership_expiry_date = Column(Date, nullable=True)
-    membership_type = Column(String(100), nullable=True)  # Store payment item name
-
-    payments = relationship(
-        "Payment", back_populates="patron", cascade="all, delete-orphan"
-    )
-    borrowed_books = relationship(
-        "BorrowedBook", back_populates="patron", cascade="all, delete-orphan"
-    )
-
-    @validates("category")
-    def validate_category(self, key, category):
-        if isinstance(category, str):
-            try:
-                return Category(category.lower())
-            except ValueError:
-                raise ValueError(f"Invalid category: {category}")
-        return category
-
-    def is_membership_active(self):
-        """Check if membership is currently active and not expired"""
-        if not self.membership_expiry_date:
-            return False
-        return (
-            self.membership_status == MembershipStatus.ACTIVE
-            and self.membership_expiry_date >= date.today()
-        )
-
-    def get_membership_days_remaining(self):
-        """Get days remaining on membership"""
-        if not self.membership_expiry_date:
-            return 0
-        remaining = (self.membership_expiry_date - date.today()).days
-        return max(0, remaining)
-
-    def expire_membership_if_needed(self):
-        """Update membership status if expired"""
-        if (
-            self.membership_expiry_date
-            and self.membership_expiry_date < date.today()
-            and self.membership_status == MembershipStatus.ACTIVE
-        ):
-            self.membership_status = MembershipStatus.EXPIRED
-            return True
-        return False
-
-
 # Simplified Payment model without complex installments
 class Payment(Base):
     __tablename__ = "payments"
@@ -219,7 +272,7 @@ class Payment(Base):
 
     # Core payment fields
     amount_paid = Column(Float, nullable=False)  # Amount actually paid
-    # payment_type = Column(Text, nullable=True)
+    payment_type = Column(Enum(PaymentType), nullable=False, default=PaymentType.CASH)
     total_amount_due = Column(Float, nullable=False)  # Total amount required
     payment_date = Column(Date, nullable=False)
     status = Column(Enum(PaymentStatus), nullable=False, default=PaymentStatus.PENDING)
@@ -307,55 +360,6 @@ class PartialPayment(Base):
     __table_args__ = (
         CheckConstraint("amount > 0", name="check_positive_partial_amount"),
     )
-
-
-# Keep existing models (User, UserSession, Book, BorrowedBook) unchanged
-class User(Base):
-    __tablename__ = "Users"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    username = Column(String(50), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
-    phone_number = Column(String(100), unique=True, nullable=False)
-    password_hash = Column(String(128), nullable=False)
-    salt = Column(String(32), nullable=False)
-    role = Column(Enum(UserRole), nullable=False, default=UserRole.ASSISTANT)
-    full_name = Column(String(100), nullable=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    last_login = Column(DateTime, nullable=True)
-    login_attempts = Column(Integer, default=0)
-    locked_until = Column(DateTime, nullable=True)
-
-    sessions = relationship(
-        "UserSession", back_populates="user", cascade="all, delete-orphan"
-    )
-
-    def set_password(self, password):
-        """Hash and set password with salt"""
-        self.salt = secrets.token_hex(16)
-        password_salt = password + self.salt
-        self.password_hash = hashlib.sha256(password_salt.encode()).hexdigest()
-
-    def verify_password(self, password):
-        """Verify password against stored hash"""
-        password_salt = password + self.salt
-        return hashlib.sha256(password_salt.encode()).hexdigest() == self.password_hash
-
-
-class UserSession(Base):
-    __tablename__ = "user_sessions"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(
-        Integer, ForeignKey("Users.id", ondelete="CASCADE"), nullable=False
-    )
-    session_token = Column(String(64), unique=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    expires_at = Column(DateTime, nullable=False)
-    is_active = Column(Boolean, default=True)
-
-    user = relationship("User", back_populates="sessions")
 
 
 class Book(Base):

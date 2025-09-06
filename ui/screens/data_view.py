@@ -1,3 +1,6 @@
+# First, let's update your LibraryDataView to handle patron clicks
+
+from enum import Enum
 from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -5,18 +8,25 @@ from PyQt5.QtWidgets import (
     QTableWidgetItem,
     QHeaderView,
     QSizePolicy,
+    QAbstractItemView,
 )
-from PyQt5.QtGui import QColor
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtGui import QColor, QCursor
+from db.models import MembershipStatus
 from ui.widgets.table.material_table import MaterialTable
 from utils.constants import COLORS
-
 from core.container import DependencyContainer
 
 
 class LibraryDataView(QWidget):
+    """Enhanced LibraryDataView with clickable patron rows"""
+
+    patron_selected = pyqtSignal(object)  # Signal to emit when patron is selected
+
     def __init__(self, container: DependencyContainer):
         super().__init__()
         self.container = container
+        self.patrons_data = []  # Store patron objects for reference
         self.setup_ui()
         self.load_all_data()
 
@@ -34,6 +44,27 @@ class LibraryDataView(QWidget):
         for name in ["Users", "Patrons", "Payments", "Books", "Borrowed Books"]:
             table = MaterialTable()
             table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+            # Make patron table clickable
+            if name == "Patrons":
+                table.setSelectionBehavior(QAbstractItemView.SelectRows)
+                table.setSelectionMode(QAbstractItemView.SingleSelection)
+                table.setCursor(QCursor())  # Pointing hand cursor
+                table.cellDoubleClicked.connect(self._on_patron_double_clicked)
+                # Add hover effect
+                table.setStyleSheet(
+                    table.styleSheet()
+                    + """
+                    QTableWidget::item:hover {
+                        background-color: #e3f2fd;
+                    }
+                    QTableWidget::item:selected {
+                        background-color: #1976d2;
+                        color: white;
+                    }
+                """
+                )
+
             self.tabs.addTab(table, name)
             self.tables[name] = table
 
@@ -50,9 +81,53 @@ class LibraryDataView(QWidget):
         self.load_books(books)
         self.load_borrowed_books(borrowedBooks)
 
-    # -------------------
-    # Table population
-    # -------------------
+    def load_patrons(self, patrons):
+        """Enhanced patron loading with stored references"""
+        self.patrons_data = patrons  # Store for reference
+        table = self.tables["Patrons"]
+        table.setRowCount(len(patrons))
+        table.setColumnCount(7)  # Added status column
+        headers = [
+            "Patron ID",
+            "First",
+            "Last",
+            "Institution",
+            "Grade",
+            "Phone",
+            "Status",
+        ]
+        table.setHorizontalHeaderLabels(headers)
+
+        for row, p in enumerate(patrons):
+            table.setItem(row, 0, QTableWidgetItem(p.patron_id or ""))
+            table.setItem(row, 1, QTableWidgetItem(p.first_name or ""))
+            table.setItem(row, 2, QTableWidgetItem(p.last_name or ""))
+            table.setItem(row, 3, QTableWidgetItem(p.institution or ""))
+            table.setItem(row, 4, QTableWidgetItem(p.grade_level or ""))
+            table.setItem(row, 5, QTableWidgetItem(p.phone_number or ""))
+
+            # Status with color coding
+            status = getattr(p, "membership_status", MembershipStatus.INACTIVE)
+            if isinstance(status, Enum):
+                status_str = status.value  # use `.value` instead of `.title()`
+            else:
+                status_str = str(status)
+            status_item = QTableWidgetItem(status_str.upper())
+            status_color = (
+                COLORS["success"] if status_item == "active" else COLORS["error"]
+            )
+            status_item.setForeground(QColor(status_color))
+            table.setItem(row, 6, status_item)
+
+        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+
+    def _on_patron_double_clicked(self, row, column):
+        """Handle patron row double-click"""
+        if row < len(self.patrons_data):
+            patron = self.patrons_data[row]
+            self.patron_selected.emit(patron)
+
+    # Keep all other existing methods unchanged...
     def load_users(self, users):
         table = self.tables["Users"]
         table.setRowCount(len(users))
@@ -74,23 +149,6 @@ class LibraryDataView(QWidget):
 
         table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
-    def load_patrons(self, patrons):
-        table = self.tables["Patrons"]
-        table.setRowCount(len(patrons))
-        table.setColumnCount(6)
-        headers = ["Patron ID", "First", "Last", "Institution", "Grade", "Phone"]
-        table.setHorizontalHeaderLabels(headers)
-
-        for row, p in enumerate(patrons):
-            table.setItem(row, 0, QTableWidgetItem(p.patron_id or ""))
-            table.setItem(row, 1, QTableWidgetItem(p.first_name or ""))
-            table.setItem(row, 2, QTableWidgetItem(p.last_name or ""))
-            table.setItem(row, 3, QTableWidgetItem(p.institution or ""))
-            table.setItem(row, 4, QTableWidgetItem(p.grade_level or ""))
-            table.setItem(row, 5, QTableWidgetItem(p.phone_number or ""))
-
-        table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-
     def load_payments(self, payments):
         table = self.tables["Payments"]
         table.setRowCount(len(payments))
@@ -101,12 +159,6 @@ class LibraryDataView(QWidget):
         for row, p in enumerate(payments):
             table.setItem(row, 0, QTableWidgetItem(str(p.payment_id)))
             table.setItem(row, 1, QTableWidgetItem(str(p.user_id)))
-            # Ensure payment_type is displayed as string
-            # payment_type_text = (
-            #     p.payment_type.value
-            #     if hasattr(p.payment_type, "value")
-            #     else str(p.payment_type or "")
-            # )
             payment_type_text = (
                 p.payment_item.display_name.lower()
                 if p.payment_item and p.payment_item.display_name

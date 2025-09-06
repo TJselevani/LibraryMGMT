@@ -19,6 +19,7 @@ class ViewType(Enum):
     PAYMENTS = "payments"
     ALL_TABLES = "all_tables"
     LIBRARY_DATA = "library_data"
+    PATRON_DETAIL = "patron_detail"
 
 
 @dataclass
@@ -53,6 +54,11 @@ class AppConfig:
             title="Users Management",
             subtitle="Manage library members and their information.",
             action_buttons=["Add New User", "Import Data", "Export Data"],
+        ),
+        ViewType.PATRON_DETAIL: ViewConfig(
+            title=None,
+            subtitle=None,
+            action_buttons=None,
         ),
         ViewType.ALL_TABLES: ViewConfig(
             title=None,

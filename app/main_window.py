@@ -235,6 +235,11 @@ class MainWindow(QMainWindow):
         try:
             view_widget = self.view_factory.create_view(view_type, **kwargs)
             if view_widget:
+                # Connect patron selection signal for data view
+                if hasattr(view_widget, "patron_selected"):
+                    view_widget.patron_selected.connect(self._handle_patron_selected)
+
+                # Connect other signals
                 if hasattr(view_widget, "add_requested"):
                     view_widget.add_requested.connect(self._handle_add_request)
 
@@ -245,6 +250,15 @@ class MainWindow(QMainWindow):
                 self.current_view_widget = view_widget
         except Exception as e:
             self._handle_error(f"Error creating view widget: {e}")
+
+    def _handle_patron_selected(self, patron):
+        """Handle patron selection from data view"""
+        # Navigate to patron detail view
+        self.navigate_to(ViewType.PATRON_DETAIL, patron=patron)
+
+    def show_patron_detail(self, patron):
+        """Public method to show patron detail"""
+        self.navigate_to(ViewType.PATRON_DETAIL, patron=patron)
 
     def _connect_action_buttons(self, buttons: list, view_type: ViewType):
         """Connect action buttons to their handlers"""
