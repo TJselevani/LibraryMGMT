@@ -7,6 +7,7 @@ from PyQt5.QtGui import QFont
 from config.ui_config import ViewType, COLORS
 from core.container import DependencyContainer
 from typing import Callable
+from services.analytics_integration import IntegrationHelper
 
 # =====================================================================
 # VIEW FACTORY
@@ -36,6 +37,16 @@ class ViewFactory:
     def _create_homepage_view(self, **kwargs) -> QWidget:
         """Create dashboard view"""
         from ui.screens.home_view import HomeView
+
+        home_view = HomeView(self.container)
+
+        # Check dependencies
+        if IntegrationHelper.check_dependencies():
+            # Patch with analytics functionality
+            home_view = IntegrationHelper.patch_homeview(home_view)
+            print("Analytics integration successful!")
+        else:
+            print("Analytics integration skipped due to missing dependencies")
 
         return HomeView(self.container)
 

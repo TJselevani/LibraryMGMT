@@ -1,0 +1,176 @@
+{
+  "generated_at": "2025-09-06T10:48:56.551717",
+  "summary_stats": {
+    "total_patrons": 4,
+    "total_borrowings": 1,
+    "total_payments": 4,
+    "total_attendance": 5
+  },
+  "charts": {
+    "gender_distribution": {
+      "type": "pie",
+      "title": "Patron Gender Distribution",
+      "labels": [
+        "Female",
+        "Male"
+      ],
+      "values": [
+        2,
+        2
+      ],
+      "colors": [
+        "#FF6B6B",
+        "#4ECDC4"
+      ]
+    },
+    "institution_distribution": {
+      "type": "bar",
+      "title": "Top 10 Institutions by Patron Count",
+      "x": [
+        "Greenwood Primary",
+        "Lakeside University",
+        "Community Center",
+        "KCL"
+      ],
+      "y": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "color": "#4ECDC4"
+    },
+    "borrowing_trends": {
+      "type": "line",
+      "title": "Borrowing Trends Over Time",
+      "x": [
+        "2025-09"
+      ],
+      "y": [
+        1
+      ],
+      "color": "#FF6B6B"
+    },
+    "category_performance": {
+      "type": "grouped_bar",
+      "title": "Borrowing Performance by Patron Category",
+      "categories": [
+        "ADULT"
+      ],
+      "series": [
+        {
+          "name": "Total Borrowings",
+          "data": [
+            1
+          ],
+          "color": "#4ECDC4"
+        },
+        {
+          "name": "Books Returned",
+          "data": [
+            0
+          ],
+          "color": "#96CEB4"
+        }
+      ]
+    },
+    "payment_status": {
+      "type": "doughnut",
+      "title": "Payment Status Distribution",
+      "labels": [
+        "COMPLETED",
+        "PARTIAL"
+      ],
+      "values": [
+        3,
+        1
+      ],
+      "colors": [
+        "#96CEB4",
+        "#FFEAA7"
+      ]
+    },
+    "daily_attendance": {
+      "type": "line",
+      "title": "Daily Attendance (Last 30 Days)",
+      "x": [
+        "2025-08-07",
+        "2025-08-08",
+        "2025-08-09",
+        "2025-08-10",
+        "2025-08-11",
+        "2025-08-12",
+        "2025-08-13",
+        "2025-08-14",
+        "2025-08-15",
+        "2025-08-16",
+        "2025-08-17",
+        "2025-08-18",
+        "2025-08-19",
+        "2025-08-20",
+        "2025-08-21",
+        "2025-08-22",
+        "2025-08-23",
+        "2025-08-24",
+        "2025-08-25",
+        "2025-08-26",
+        "2025-08-27",
+        "2025-08-28",
+        "2025-08-29",
+        "2025-08-30",
+        "2025-08-31",
+        "2025-09-01",
+        "2025-09-02",
+        "2025-09-03",
+        "2025-09-04",
+        "2025-09-05",
+        "2025-09-06"
+      ],
+      "y": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        2,
+        1,
+        1,
+        1,
+        0,
+        0
+      ],
+      "color": "#45B7D1"
+    },
+    "revenue_trends": {
+      "type": "bar",
+      "title": "Monthly Revenue Trends",
+      "x": [
+        "2025-09"
+      ],
+      "y": [
+        790.0
+      ],
+      "color": "#96CEB4"
+    }
+  }
+}

@@ -1,6 +1,13 @@
 # main.py
 import sys
+from PyQt5.QtCore import Qt, QCoreApplication
+
+# Must be set BEFORE QApplication is created
+QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)
+
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWebEngineWidgets import QWebEngineView
+
 from ui.screens.login_window import LoginWindow
 from utils.database_manager import MyDatabaseManager
 from services.auth_service import AuthenticationService
@@ -9,7 +16,7 @@ from app.application import create_application
 
 class ApplicationManager:
     def __init__(self):
-        self.app = QApplication(sys.argv)
+        self.app = QApplication(sys.argv)  # ✅ create once
         self.db_manager = None
         self.auth_service = None
         self.login_window = None
@@ -25,9 +32,9 @@ class ApplicationManager:
         if self.login_window:
             self.login_window.hide()
 
-        # Delegate creation of the application (wires dependencies)
-        app_instance = create_application(self.auth_service, user_info)
-        sys.exit(app_instance.run())
+        # ✅ Pass the already-created QApplication
+        app_instance = create_application(self.app, self.auth_service, user_info)
+        app_instance.run()  # no sys.exit here, since run() won’t create another app
 
     def show_login_window(self):
         self.login_window = LoginWindow(self.auth_service)
